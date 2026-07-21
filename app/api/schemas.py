@@ -1,3 +1,4 @@
+from enum import Enum
 """
 Pydantic Schemas for API
 
@@ -68,7 +69,7 @@ class ContentProfileResponse(ContentProfileBase):
 
 # ============== Project Schemas ==============
 
-class WorkflowStageType(str):
+class WorkflowStageType(str, Enum):
     """Workflow stage types."""
     IDEA = "idea"
     RESEARCH = "research"
@@ -80,7 +81,7 @@ class WorkflowStageType(str):
     PUBLISH = "publish"
 
 
-class WorkflowStatus(str):
+class WorkflowStatus(str, Enum):
     """Workflow status."""
     PENDING = "pending"
     IN_PROGRESS = "in_progress"

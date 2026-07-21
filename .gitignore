@@ -1,34 +1,60 @@
 ```
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-.env.
-
-# Editors
-.vscode/
-.idea/
-
-# Dependencies
-.venv/
-venv/
-node_modules/
-
-# Build artifacts
-dist/
-build/
-target/
+# Database
+test_auth.db
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Original rules preserved
+.Python
+env/
+venv/
+.venv/
+.ENV
+.env
+.env.local
+.env.*
+.venv.bak
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
+.gitattributes
+.next
+.tern-project
+.tern-port
+.sass-cache
+.nyc_output
+.grunt
+.travis.yml
+.node-version
+.python-version
+.ruby-version
+.bundle
+.rbenv-gemsets
+.rbenv-vars
+.rbenv-version
+.gem
+.rvmrc
+.opam
+.rebar
+.rebar3
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.eggs/
+*.egg-info/
+.installed.cfg
+.venv.bak/
+.ENV/
+.env.bak
+.python-history
+.vscode/settings.json
 ```
