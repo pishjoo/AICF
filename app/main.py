@@ -11,6 +11,7 @@ import logging
 from core.config import settings
 from database.connection import engine, Base
 from app.api.routes import router
+from app.middleware.tenant_isolation import TenantIsolationMiddleware
 
 
 # Configure logging
@@ -43,6 +44,9 @@ def create_app() -> FastAPI:
     )
     
     # Include API router
+    # Add tenant isolation middleware
+    app.add_middleware(TenantIsolationMiddleware)
+
     app.include_router(router, prefix=settings.API_PREFIX)
     
     # Startup event

@@ -301,8 +301,8 @@ class Permission(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationships
-    roles = relationship("Role", secondary="role_permissions", back_populates="permissions_list")
+    # Relationships (removed incorrect back_populates)
+    # roles = relationship("Role", secondary="role_permissions", back_populates="permissions_list")
     
     def __repr__(self):
         return f"<Permission(id={self.id}, slug='{self.slug}')>"

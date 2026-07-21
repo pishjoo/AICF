@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
     CORS_ORIGINS: List[str] = ["*"]
     
+    # Authentication
+    JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
