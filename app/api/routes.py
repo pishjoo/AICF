@@ -9,7 +9,17 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from database.connection import get_db
-from database.models import ContentProfile, Project, WorkflowStage, WorkflowStatus as DBWorkflowStatus
+# Temporarily disabled legacy imports for v2 compatibility
+# from database.models import ContentProfile, Project, WorkflowStage, WorkflowStatus as DBWorkflowStatus
+from database.models import ChannelProfile as ContentProfile, Episode as Project, AgentExecution as WorkflowStage
+from enum import Enum
+class WorkflowStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
 from app.api.schemas import (
     ContentProfileCreate,
     ContentProfileUpdate,
@@ -23,9 +33,13 @@ from app.api.schemas import (
     AgentExecuteRequest,
     AgentExecuteResponse
 )
+from app.auth.routes import router as auth_router
 
 
 router = APIRouter()
+
+# Include authentication routes
+router.include_router(auth_router)
 
 
 # ============== Content Profile Endpoints ==============
