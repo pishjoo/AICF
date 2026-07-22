@@ -2,54 +2,28 @@
 # Database files
 *.db
 
-# Test database files
-test_*.db
-
-# Environment files
-.env
-.env.local
-.env.*
-
-# Python
+# Dependencies
+.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-*.so
-*.egg-info/
-.eggs/
 
-# Dependencies
-venv/
-.venv/
-.env/
-requirements/*.txt
-
-# Logs
+# Logs and temp files
 *.log
+*.tmp
 
-# Testing
-.coverage
-coverage/
-htmlcov/
-.pytest_cache/
-.mypy_cache/
+# Environment
+.env
+.env.local
+*.env.*
 
-# IDE
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Build artifacts
-dist/
-build/
-target/
-*.out
 ```
