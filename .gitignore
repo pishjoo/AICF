@@ -1,60 +1,89 @@
-```
+# =========================
 # Database
-test_auth.db
+# =========================
+*.db
+*.sqlite
+*.sqlite3
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
+# =========================
+# Environment
+# =========================
 .env
 .env.local
 .env.*
-.venv.bak
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
+.ENV
+.ENV.local
+.env.bak
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+
+.python-version
+
+# Virtual environments
+venv/
+env/
+.venv/
+.venv.bak/
+
+# =========================
+# Testing
+# =========================
+.pytest_cache/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
+coverage/
 coverage.xml
-*.cover
-*.log
-.gitattributes
-.next
-.tern-project
-.tern-port
-.sass-cache
-.nyc_output
-.grunt
-.travis.yml
-.node-version
-.python-version
-.ruby-version
-.bundle
-.rbenv-gemsets
-.rbenv-vars
-.rbenv-version
-.gem
-.rvmrc
-.opam
-.rebar
-.rebar3
-.mypy_cache/
-.pytest_cache/
-.hypothesis/
+htmlcov/
+
+# =========================
+# Packaging
+# =========================
 .eggs/
 *.egg-info/
-.installed.cfg
-.venv.bak/
-.ENV/
-.env.bak
-.python-history
-.vscode/settings.json
-```
+dist/
+build/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =========================
+# Type checking / Linters
+# =========================
+.mypy_cache/
+.hypothesis/
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# AICF test artifacts
+# =========================
+test_auth.db
+
+# =========================
+# Node / Frontend leftovers
+# =========================
+.next/
+node_modules/
