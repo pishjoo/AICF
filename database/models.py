@@ -867,6 +867,7 @@ class Asset(TenantMixin, Base):
     storage_provider = Column(String(50), nullable=True)  # s3, gcs, local, etc.
     storage_bucket = Column(String(255), nullable=True)
     storage_path = Column(String(500), nullable=True)
+    storage_key = Column(String(255), nullable=True, index=True)  # Unique storage identifier
     storage_url = Column(String(500), nullable=True)  # Public or signed URL
     
     # File info
@@ -885,6 +886,7 @@ class Asset(TenantMixin, Base):
     # Metadata
     alt_text = Column(String(500), nullable=True)
     tags = Column(JSON, default=list)
+    metadata = Column(JSON, default=dict)  # Additional metadata from storage provider
     extra_data = Column(JSON, default=dict)
     
     # Relationships
@@ -934,8 +936,13 @@ class AgentExecution(TenantMixin, Base):
     
     # Timing
     started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)  # Alias for completed_at
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    execution_time = Column(Float, nullable=True)  # Alias for duration_seconds
     duration_seconds = Column(Float, nullable=True)
+    
+    # Token usage tracking
+    token_usage = Column(BigInteger, default=0)  # Alias for total_tokens
     
     # Error handling
     error_message = Column(Text, nullable=True)
@@ -948,6 +955,7 @@ class AgentExecution(TenantMixin, Base):
     prompt_tokens = Column(BigInteger, default=0)
     completion_tokens = Column(BigInteger, default=0)
     total_tokens = Column(BigInteger, default=0)
+    cost_usd = Column(Float, default=0.0)  # Cost tracking
     
     # Retry info
     retry_count = Column(Integer, default=0)
