@@ -20,7 +20,13 @@ def hash_password(password: str) -> str:
         
     Returns:
         Hashed password string
+        
+    Note:
+        Bcrypt has a 72-byte limit on passwords. We truncate if necessary.
     """
+    # Bcrypt has a 72-byte limit, truncate if needed
+    if len(password) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 

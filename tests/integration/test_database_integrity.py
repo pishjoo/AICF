@@ -13,8 +13,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
+# Use SQLite for testing
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
+test_engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+
 # Import models
-from database.connection import Base, engine, init_db
+from database.connection import Base
+from database import models  # noqa: F401 - Ensure all models are loaded
 from database.models import (
     Organization, Team, User, Role, Permission, UserRole, TeamMember, AuditLog,
     ChannelProfile, ContentStrategy, Playlist, Episode, ProductionTemplate,
@@ -32,10 +37,10 @@ def test_database_integrity():
     
     # Create tables
     print("\n[1/10] Creating database schema...")
-    init_db()
+    Base.metadata.create_all(bind=test_engine)
     print("✓ Schema created successfully")
     
-    with Session(engine) as db:
+    with Session(test_engine) as db:
         try:
             # 1. Create Organization
             print("\n[2/10] Creating Organization...")

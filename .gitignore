@@ -1,14 +1,10 @@
 ```
-# Database files
+# Database
 *.db
 
-# Test database files
+# Test artifacts
+.test*
 test_*.db
-
-# Environment files
-.env
-.env.local
-.env.*
 
 # Python
 __pycache__/
@@ -16,25 +12,23 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-*.so
-*.egg-info/
-.eggs/
-
-# Dependencies
+env/
 venv/
 .venv/
-.env/
-requirements/*.txt
+.ENV
+.ENV.*
+.python-version
+.pytest_cache/
+.coverage
+coverage/
 
 # Logs
 *.log
 
-# Testing
-.coverage
-coverage/
-htmlcov/
-.pytest_cache/
-.mypy_cache/
+# Environment
+.env
+.env.local
+.env.*
 
 # IDE
 .vscode/
@@ -47,9 +41,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Build artifacts
-dist/
+# Build
 build/
-target/
-*.out
+dist/
+*.egg-info/
 ```
