@@ -1,35 +1,89 @@
-```
+# =========================
 # Database
+# =========================
 *.db
+*.sqlite
+*.sqlite3
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.ENV.local
+# =========================
+# Environment
+# =========================
 .env
 .env.local
 .env.*
+.ENV
+.ENV.local
+.env.bak
 
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+
+.python-version
+
+# Virtual environments
+venv/
+env/
+.venv/
+.venv.bak/
+
+# =========================
 # Testing
+# =========================
 .pytest_cache/
 .coverage
+.coverage.*
 coverage/
+coverage.xml
+htmlcov/
 
+# =========================
+# Packaging
+# =========================
+.eggs/
+*.egg-info/
+dist/
+build/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =========================
+# Type checking / Linters
+# =========================
+.mypy_cache/
+.hypothesis/
+
+# =========================
 # IDE
+# =========================
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
 
+# =========================
 # OS
+# =========================
 .DS_Store
 Thumbs.db
-```
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# AICF test artifacts
+# =========================
+test_auth.db
+
+# =========================
+# Node / Frontend leftovers
+# =========================
+.next/
+node_modules/
