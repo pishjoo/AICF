@@ -1,48 +1,29 @@
 ```
-# Database
+# Database files
 *.db
 
-# Test artifacts
-.test*
-test_*.db
-
-# Python
+# Dependencies
+.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.ENV.*
-.python-version
-.pytest_cache/
-.coverage
-coverage/
 
-# Logs
+# Logs and temp files
 *.log
+*.tmp
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
-# IDE
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Build
-build/
-dist/
-*.egg-info/
 ```
