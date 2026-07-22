@@ -1,89 +1,55 @@
-# =========================
-# Database
-# =========================
+```
+# Database files
 *.db
-*.sqlite
-*.sqlite3
 
-# =========================
-# Environment
-# =========================
+# Test database files
+test_*.db
+
+# Environment files
 .env
 .env.local
 .env.*
-.ENV
-.ENV.local
-.env.bak
 
-# =========================
 # Python
-# =========================
 __pycache__/
-*.py[cod]
-*.pyd
+*.pyc
 *.pyo
-
-.python-version
-
-# Virtual environments
-venv/
-env/
-.venv/
-.venv.bak/
-
-# =========================
-# Testing
-# =========================
-.pytest_cache/
-.coverage
-.coverage.*
-coverage/
-coverage.xml
-htmlcov/
-
-# =========================
-# Packaging
-# =========================
-.eggs/
+*.pyd
+.Python
+*.so
 *.egg-info/
-dist/
-build/
-pip-log.txt
-pip-delete-this-directory.txt
+.eggs/
 
-# =========================
-# Type checking / Linters
-# =========================
+# Dependencies
+venv/
+.venv/
+.env/
+requirements/*.txt
+
+# Logs
+*.log
+
+# Testing
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
 .mypy_cache/
-.hypothesis/
 
-# =========================
 # IDE
-# =========================
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
 
-# =========================
 # OS
-# =========================
 .DS_Store
 Thumbs.db
 
-# =========================
-# Logs
-# =========================
-*.log
-
-# =========================
-# AICF test artifacts
-# =========================
-test_auth.db
-
-# =========================
-# Node / Frontend leftovers
-# =========================
-.next/
-node_modules/
+# Build artifacts
+dist/
+build/
+target/
+*.out
+```

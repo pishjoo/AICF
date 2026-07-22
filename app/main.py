@@ -1,53 +1,85 @@
 """
 AICF Main Application
 
-FastAPI application entry point.
+FastAPI application entry point with production-ready configuration.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer
 import logging
+import time
+from datetime import datetime
 
 from core.config import settings
+from core.logging_config import logger, log_error, log_request, RequestLoggingMiddleware
 from database.connection import engine, Base
 from app.api.routes import router
 from app.middleware.tenant_isolation import TenantIsolationMiddleware
-
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO if settings.DEBUG else logging.WARNING,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger(__name__)
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     
     app = FastAPI(
-        title=settings.APP_NAME,
-        version=settings.APP_VERSION,
-        description="AI Content Factory - Multi-agent system for YouTube content production",
+        title="AICF v2 API",
+        version="2.0.0",
+        description="""
+AI Content Factory multi-tenant SaaS platform
+
+## Features
+
+* **Multi-tenant Architecture** - Complete organization isolation
+* **Channel Management** - YouTube channel profiles and strategies
+* **Content Planning** - Playlists and episodes management
+* **AI-Powered Production** - Automated content creation workflows
+* **Asset Management** - Media storage and organization
+* **Role-Based Access Control** - Granular permissions system
+
+## Authentication
+
+All endpoints require JWT Bearer token authentication except:
+- `/auth/register`
+- `/auth/login`
+- `/health`
+""",
         docs_url="/docs",
-        redoc_url="/redoc"
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        contact={
+            "name": "AICF Support",
+            "email": "support@aicf.example.com"
+        },
+        license_info={
+            "name": "Proprietary",
+        },
     )
     
-    # Configure CORS
+    # Configure CORS with security restrictions
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.CORS_ORIGINS if settings.CORS_ORIGINS != ["*"] else ["http://localhost:3000", "http://localhost:8000"],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_headers=["Authorization", "Content-Type", "X-Organization-ID"],
+        expose_headers=["X-Organization-ID", "X-Request-ID"],
+        max_age=600,
     )
     
-    # Include API router
     # Add tenant isolation middleware
     app.add_middleware(TenantIsolationMiddleware)
-
+    
+    # Add request logging middleware
+    app.add_middleware(RequestLoggingMiddleware)
+    
+    # Include API router
     app.include_router(router, prefix=settings.API_PREFIX)
+    
+    # Register global exception handlers
+    register_exception_handlers(app)
     
     # Startup event
     @app.on_event("startup")
@@ -73,6 +105,114 @@ def create_app() -> FastAPI:
         logger.info("Shutting down AICF application")
     
     return app
+
+
+def register_exception_handlers(app: FastAPI):
+    """Register global exception handlers."""
+    
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        """Handle HTTP exceptions with consistent response format."""
+        log_error(
+            exc,
+            context=f"HTTP {exc.status_code}",
+            request_path=request.url.path
+        )
+        
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "error": {
+                    "code": f"HTTP_{exc.status_code}",
+                    "message": exc.detail
+                }
+            },
+            headers=getattr(exc, "headers", None)
+        )
+    
+    @app.exception_handler(ValidationError)
+    async def validation_exception_handler(request: Request, exc: ValidationError):
+        """Handle Pydantic validation errors."""
+        log_error(
+            exc,
+            context="Validation Error",
+            request_path=request.url.path
+        )
+        
+        errors = exc.errors()
+        error_messages = []
+        for error in errors:
+            field = ".".join(str(x) for x in error.get("loc", []))
+            message = error.get("msg", "Invalid value")
+            error_messages.append(f"{field}: {message}")
+        
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "success": False,
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "; ".join(error_messages)
+                }
+            }
+        )
+    
+    @app.exception_handler(SQLAlchemyError)
+    async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+        """Handle database errors."""
+        log_error(
+            exc,
+            context="Database Error",
+            request_path=request.url.path
+        )
+        
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "error": {
+                    "code": "DATABASE_ERROR",
+                    "message": "A database error occurred. Please try again later."
+                }
+            }
+        )
+    
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        """Handle unexpected exceptions."""
+        log_error(
+            exc,
+            context="Unexpected Error",
+            request_path=request.url.path
+        )
+        
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "An unexpected error occurred. Please try again later."
+                }
+            }
+        )
+    
+    # Add security headers middleware
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        """Add security headers to all responses."""
+        response = await call_next(request)
+        
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        return response
 
 
 # Create application instance

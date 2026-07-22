@@ -1,7 +1,7 @@
 """
-Authentication Dependencies
+API Dependencies
 
-FastAPI dependencies for authentication and authorization.
+FastAPI dependencies for authentication, authorization, and context.
 """
 
 from fastapi import Depends, HTTPException, status, Request
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from database.connection import get_db
-from database.models import User, Role, UserRole
+from database.models import User, Role, UserRole, Organization
 from app.auth.jwt import verify_token, TOKEN_TYPE_ACCESS
 from app.auth.schemas import TokenData
 
@@ -183,22 +183,68 @@ def require_role(required_role: str):
     return role_checker
 
 
-async def get_current_organization(
-    current_user: User = Depends(get_current_user)
-) -> int:
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
     """
-    Get the current user's organization ID.
+    Dependency to check if user has admin privileges.
+    
+    Args:
+        current_user: Authenticated user
+        db: Database session
+        
+    Returns:
+        Authenticated user if they have admin role
+        
+    Raises:
+        HTTPException: If user doesn't have admin privileges
+    """
+    user_roles = db.query(UserRole).join(Role).filter(
+        UserRole.user_id == current_user.id,
+        UserRole.organization_id == current_user.organization_id
+    ).all()
+    
+    role_slugs = [ur.role.slug for ur in user_roles]
+    
+    if "owner" in role_slugs or "admin" in role_slugs:
+        return current_user
+    
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin privileges required",
+    )
+
+
+async def get_current_organization(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Organization:
+    """
+    Get the current user's organization object.
     
     This dependency extracts the organization context from the
     authenticated user for tenant isolation.
     
     Args:
         current_user: Authenticated user
+        db: Database session
         
     Returns:
-        Organization ID
+        Organization object
     """
-    return current_user.organization_id
+    org = db.query(Organization).filter(
+        Organization.id == current_user.organization_id,
+        Organization.deleted_at == None
+    ).first()
+    
+    if org is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization not found or deleted",
+        )
+    
+    return org
 
 
 class TenantIsolationChecker:
