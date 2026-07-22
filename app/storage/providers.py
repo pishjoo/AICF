@@ -333,26 +333,53 @@ class LocalStorageProvider(StorageProvider):
 
 class S3StorageProvider(StorageProvider):
     """
-    AWS S3 storage provider (prepared for implementation).
+    AWS S3 storage provider for production use.
     
-    To implement:
-    1. Install boto3: pip install boto3
-    2. Configure AWS credentials
-    3. Implement methods using boto3 S3 client
+    Implements all StorageProvider methods using boto3.
+    Supports organization isolation through key prefixes.
     """
     
     def __init__(
         self,
         bucket: str,
         region: str = "us-east-1",
-        endpoint_url: Optional[str] = None
+        endpoint_url: Optional[str] = None,
+        access_key_id: Optional[str] = None,
+        secret_access_key: Optional[str] = None,
+        organization_prefix: str = ""
     ):
         super().__init__(StorageProviderType.S3)
+        
+        try:
+            import boto3
+            from botocore.exceptions import ClientError, NoCredentialsError
+            self.boto3 = boto3
+            self.ClientError = ClientError
+            self.NoCredentialsError = NoCredentialsError
+        except ImportError:
+            raise ImportError("boto3 is required for S3StorageProvider. Install with: pip install boto3")
+        
         self.bucket = bucket
         self.region = region
         self.endpoint_url = endpoint_url
-        self.client = None  # Initialize boto3 client when ready
-        self.logger.warning("S3StorageProvider is prepared but not fully implemented")
+        self.organization_prefix = organization_prefix
+        
+        # Initialize S3 client
+        self.client = self.boto3.client(
+            's3',
+            region_name=region,
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key
+        )
+        
+        self.logger.info(f"S3StorageProvider initialized for bucket '{bucket}' in region '{region}'")
+    
+    def _get_key(self, key: str) -> str:
+        """Add organization prefix to key for isolation."""
+        if self.organization_prefix:
+            return f"{self.organization_prefix}/{key}"
+        return key
     
     def upload(
         self,
@@ -361,26 +388,160 @@ class S3StorageProvider(StorageProvider):
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> UploadResult:
-        raise NotImplementedError("S3StorageProvider not yet implemented")
+        try:
+            s3_key = self._get_key(key)
+            
+            # Calculate checksums before upload
+            md5_sum, sha256_sum = self._calculate_checksums(file)
+            
+            # Get file size
+            current_pos = file.tell()
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(current_pos)
+            
+            # Prepare upload arguments
+            upload_args = {
+                'Bucket': self.bucket,
+                'Key': s3_key,
+                'Body': file
+            }
+            
+            if content_type:
+                upload_args['ContentType'] = content_type
+            
+            if metadata:
+                upload_args['Metadata'] = {str(k): str(v) for k, v in metadata.items()}
+            
+            # Upload to S3
+            self.client.upload_fileobj(**upload_args)
+            
+            # Build metadata
+            storage_metadata = StorageMetadata(
+                filename=key.split("/")[-1],
+                content_type=content_type,
+                file_size_bytes=file_size,
+                checksum_md5=md5_sum,
+                checksum_sha256=sha256_sum,
+                uploaded_at=datetime.now(timezone.utc),
+                custom_metadata=metadata or {}
+            )
+            
+            # Generate URL
+            storage_url = f"s3://{self.bucket}/{s3_key}"
+            
+            self.logger.info(f"Uploaded file to S3: {s3_key} ({file_size} bytes)")
+            
+            return UploadResult.success_result(
+                storage_key=s3_key,
+                storage_url=storage_url,
+                provider=StorageProviderType.S3,
+                metadata=storage_metadata
+            )
+            
+        except self.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = f"S3 upload failed: {error_code} - {str(e)}"
+            self.logger.exception(error_msg)
+            return UploadResult.failure_result(error_msg, StorageProviderType.S3)
+        except Exception as e:
+            error_msg = f"Unexpected upload error: {str(e)}"
+            self.logger.exception(error_msg)
+            return UploadResult.failure_result(error_msg, StorageProviderType.S3)
     
     def download(self, key: str) -> Optional[BinaryIO]:
-        raise NotImplementedError("S3StorageProvider not yet implemented")
+        try:
+            import io
+            s3_key = self._get_key(key)
+            
+            # Download file to BytesIO
+            buffer = io.BytesIO()
+            self.client.download_fileobj(self.bucket, s3_key, buffer)
+            buffer.seek(0)
+            
+            self.logger.debug(f"Downloaded file from S3: {s3_key}")
+            return buffer
+            
+        except self.ClientError as e:
+            if e.response.get('Error', {}).get('Code') == '404':
+                self.logger.warning(f"File not found in S3: {s3_key}")
+                return None
+            error_msg = f"S3 download failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return None
+        except Exception as e:
+            error_msg = f"Unexpected download error: {str(e)}"
+            self.logger.exception(error_msg)
+            return None
     
     def delete(self, key: str) -> bool:
-        raise NotImplementedError("S3StorageProvider not yet implemented")
+        try:
+            s3_key = self._get_key(key)
+            
+            self.client.delete_object(Bucket=self.bucket, Key=s3_key)
+            
+            self.logger.info(f"Deleted file from S3: {s3_key}")
+            return True
+            
+        except self.ClientError as e:
+            error_msg = f"S3 delete failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected delete error: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
     
     def get_url(self, key: str, expires_in: int = 3600) -> str:
-        raise NotImplementedError("S3StorageProvider not yet implemented")
+        try:
+            s3_key = self._get_key(key)
+            
+            # Check if file exists first
+            if not self.exists(key):
+                raise FileNotFoundError(f"File not found: {key}")
+            
+            # Generate presigned URL
+            url = self.client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket, 'Key': s3_key},
+                ExpiresIn=expires_in
+            )
+            
+            self.logger.debug(f"Generated presigned URL for {s3_key} (expires in {expires_in}s)")
+            return url
+            
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            error_msg = f"Failed to generate URL: {str(e)}"
+            self.logger.exception(error_msg)
+            raise
     
     def exists(self, key: str) -> bool:
-        raise NotImplementedError("S3StorageProvider not yet implemented")
+        try:
+            s3_key = self._get_key(key)
+            
+            self.client.head_object(Bucket=self.bucket, Key=s3_key)
+            return True
+            
+        except self.ClientError as e:
+            if e.response.get('Error', {}).get('Code') in ['404', 'NoSuchKey']:
+                return False
+            error_msg = f"S3 exists check failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected exists check error: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
 
 
 class CloudflareR2Provider(StorageProvider):
     """
-    Cloudflare R2 storage provider (prepared for implementation).
+    Cloudflare R2 storage provider for production use.
     
-    R2 is S3-compatible, so implementation is similar to S3StorageProvider.
+    R2 is S3-compatible, so we use boto3 with R2 endpoint.
+    Supports organization isolation through key prefixes.
     """
     
     def __init__(
@@ -388,16 +549,42 @@ class CloudflareR2Provider(StorageProvider):
         bucket: str,
         account_id: str,
         access_key_id: str,
-        secret_access_key: str
+        secret_access_key: str,
+        region: str = "auto",
+        organization_prefix: str = ""
     ):
         super().__init__(StorageProviderType.CLOUDFLARE_R2)
+        
+        try:
+            import boto3
+            from botocore.exceptions import ClientError, NoCredentialsError
+            self.boto3 = boto3
+            self.ClientError = ClientError
+            self.NoCredentialsError = NoCredentialsError
+        except ImportError:
+            raise ImportError("boto3 is required for CloudflareR2Provider. Install with: pip install boto3")
+        
         self.bucket = bucket
         self.account_id = account_id
         self.endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
-        self.access_key_id = access_key_id
-        self.secret_access_key = secret_access_key
-        self.client = None  # Initialize boto3 client when ready
-        self.logger.warning("CloudflareR2Provider is prepared but not fully implemented")
+        self.organization_prefix = organization_prefix
+        
+        # Initialize S3-compatible client for R2
+        self.client = self.boto3.client(
+            's3',
+            region_name=region,
+            endpoint_url=self.endpoint_url,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key
+        )
+        
+        self.logger.info(f"CloudflareR2Provider initialized for bucket '{bucket}'")
+    
+    def _get_key(self, key: str) -> str:
+        """Add organization prefix to key for isolation."""
+        if self.organization_prefix:
+            return f"{self.organization_prefix}/{key}"
+        return key
     
     def upload(
         self,
@@ -406,26 +593,158 @@ class CloudflareR2Provider(StorageProvider):
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> UploadResult:
-        raise NotImplementedError("CloudflareR2Provider not yet implemented")
+        try:
+            r2_key = self._get_key(key)
+            
+            # Calculate checksums
+            md5_sum, sha256_sum = self._calculate_checksums(file)
+            
+            # Get file size
+            current_pos = file.tell()
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(current_pos)
+            
+            # Prepare upload arguments
+            upload_args = {
+                'Bucket': self.bucket,
+                'Key': r2_key,
+                'Body': file
+            }
+            
+            if content_type:
+                upload_args['ContentType'] = content_type
+            
+            if metadata:
+                upload_args['Metadata'] = {str(k): str(v) for k, v in metadata.items()}
+            
+            # Upload to R2
+            self.client.upload_fileobj(**upload_args)
+            
+            # Build metadata
+            storage_metadata = StorageMetadata(
+                filename=key.split("/")[-1],
+                content_type=content_type,
+                file_size_bytes=file_size,
+                checksum_md5=md5_sum,
+                checksum_sha256=sha256_sum,
+                uploaded_at=datetime.now(timezone.utc),
+                custom_metadata=metadata or {}
+            )
+            
+            # Generate URL (R2 public URL pattern)
+            storage_url = f"https://pub-{self.account_id}.r2.cloudflarestorage.com/{self.bucket}/{r2_key}"
+            
+            self.logger.info(f"Uploaded file to R2: {r2_key} ({file_size} bytes)")
+            
+            return UploadResult.success_result(
+                storage_key=r2_key,
+                storage_url=storage_url,
+                provider=StorageProviderType.CLOUDFLARE_R2,
+                metadata=storage_metadata
+            )
+            
+        except self.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = f"R2 upload failed: {error_code} - {str(e)}"
+            self.logger.exception(error_msg)
+            return UploadResult.failure_result(error_msg, StorageProviderType.CLOUDFLARE_R2)
+        except Exception as e:
+            error_msg = f"Unexpected upload error: {str(e)}"
+            self.logger.exception(error_msg)
+            return UploadResult.failure_result(error_msg, StorageProviderType.CLOUDFLARE_R2)
     
     def download(self, key: str) -> Optional[BinaryIO]:
-        raise NotImplementedError("CloudflareR2Provider not yet implemented")
+        try:
+            import io
+            r2_key = self._get_key(key)
+            
+            buffer = io.BytesIO()
+            self.client.download_fileobj(self.bucket, r2_key, buffer)
+            buffer.seek(0)
+            
+            self.logger.debug(f"Downloaded file from R2: {r2_key}")
+            return buffer
+            
+        except self.ClientError as e:
+            if e.response.get('Error', {}).get('Code') == '404':
+                self.logger.warning(f"File not found in R2: {r2_key}")
+                return None
+            error_msg = f"R2 download failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return None
+        except Exception as e:
+            error_msg = f"Unexpected download error: {str(e)}"
+            self.logger.exception(error_msg)
+            return None
     
     def delete(self, key: str) -> bool:
-        raise NotImplementedError("CloudflareR2Provider not yet implemented")
+        try:
+            r2_key = self._get_key(key)
+            
+            self.client.delete_object(Bucket=self.bucket, Key=r2_key)
+            
+            self.logger.info(f"Deleted file from R2: {r2_key}")
+            return True
+            
+        except self.ClientError as e:
+            error_msg = f"R2 delete failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected delete error: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
     
     def get_url(self, key: str, expires_in: int = 3600) -> str:
-        raise NotImplementedError("CloudflareR2Provider not yet implemented")
+        try:
+            r2_key = self._get_key(key)
+            
+            if not self.exists(key):
+                raise FileNotFoundError(f"File not found: {key}")
+            
+            # Generate presigned URL (R2 supports S3-compatible presigned URLs)
+            url = self.client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket, 'Key': r2_key},
+                ExpiresIn=expires_in
+            )
+            
+            self.logger.debug(f"Generated presigned URL for {r2_key}")
+            return url
+            
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            error_msg = f"Failed to generate URL: {str(e)}"
+            self.logger.exception(error_msg)
+            raise
     
     def exists(self, key: str) -> bool:
-        raise NotImplementedError("CloudflareR2Provider not yet implemented")
+        try:
+            r2_key = self._get_key(key)
+            
+            self.client.head_object(Bucket=self.bucket, Key=r2_key)
+            return True
+            
+        except self.ClientError as e:
+            if e.response.get('Error', {}).get('Code') in ['404', 'NoSuchKey']:
+                return False
+            error_msg = f"R2 exists check failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected exists check error: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
 
 
 class MinIOProvider(StorageProvider):
     """
-    MinIO storage provider (prepared for implementation).
+    MinIO storage provider for private cloud deployments.
     
-    MinIO is S3-compatible object storage for private clouds.
+    MinIO is S3-compatible, so we use boto3 with MinIO endpoint.
+    Supports organization isolation through buckets or key prefixes.
     """
     
     def __init__(
@@ -434,16 +753,47 @@ class MinIOProvider(StorageProvider):
         endpoint: str,
         access_key: str,
         secret_key: str,
-        secure: bool = False
+        secure: bool = False,
+        region: str = "us-east-1",
+        organization_prefix: str = ""
     ):
         super().__init__(StorageProviderType.MINIO)
+        
+        try:
+            import boto3
+            from botocore.exceptions import ClientError, NoCredentialsError
+            self.boto3 = boto3
+            self.ClientError = ClientError
+            self.NoCredentialsError = NoCredentialsError
+        except ImportError:
+            raise ImportError("boto3 is required for MinIOProvider. Install with: pip install boto3")
+        
         self.bucket = bucket
         self.endpoint = endpoint
-        self.access_key = access_key
-        self.secret_key = secret_key
         self.secure = secure
-        self.client = None  # Initialize minio client when ready
-        self.logger.warning("MinIOProvider is prepared but not fully implemented")
+        self.region = region
+        self.organization_prefix = organization_prefix
+        
+        # Build endpoint URL
+        protocol = "https" if secure else "http"
+        self.endpoint_url = f"{protocol}://{endpoint}"
+        
+        # Initialize S3-compatible client for MinIO
+        self.client = self.boto3.client(
+            's3',
+            region_name=region,
+            endpoint_url=self.endpoint_url,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key
+        )
+        
+        self.logger.info(f"MinIOProvider initialized for bucket '{bucket}' at '{self.endpoint_url}'")
+    
+    def _get_key(self, key: str) -> str:
+        """Add organization prefix to key for isolation."""
+        if self.organization_prefix:
+            return f"{self.organization_prefix}/{key}"
+        return key
     
     def upload(
         self,
@@ -452,16 +802,143 @@ class MinIOProvider(StorageProvider):
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> UploadResult:
-        raise NotImplementedError("MinIOProvider not yet implemented")
+        try:
+            minio_key = self._get_key(key)
+            
+            # Calculate checksums
+            md5_sum, sha256_sum = self._calculate_checksums(file)
+            
+            # Get file size
+            current_pos = file.tell()
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(current_pos)
+            
+            # Prepare upload arguments
+            upload_args = {
+                'Bucket': self.bucket,
+                'Key': minio_key,
+                'Body': file
+            }
+            
+            if content_type:
+                upload_args['ContentType'] = content_type
+            
+            if metadata:
+                upload_args['Metadata'] = {str(k): str(v) for k, v in metadata.items()}
+            
+            # Upload to MinIO
+            self.client.upload_fileobj(**upload_args)
+            
+            # Build metadata
+            storage_metadata = StorageMetadata(
+                filename=key.split("/")[-1],
+                content_type=content_type,
+                file_size_bytes=file_size,
+                checksum_md5=md5_sum,
+                checksum_sha256=sha256_sum,
+                uploaded_at=datetime.now(timezone.utc),
+                custom_metadata=metadata or {}
+            )
+            
+            # Generate URL
+            storage_url = f"{self.endpoint_url}/{self.bucket}/{minio_key}"
+            
+            self.logger.info(f"Uploaded file to MinIO: {minio_key} ({file_size} bytes)")
+            
+            return UploadResult.success_result(
+                storage_key=minio_key,
+                storage_url=storage_url,
+                provider=StorageProviderType.MINIO,
+                metadata=storage_metadata
+            )
+            
+        except self.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = f"MinIO upload failed: {error_code} - {str(e)}"
+            self.logger.exception(error_msg)
+            return UploadResult.failure_result(error_msg, StorageProviderType.MINIO)
+        except Exception as e:
+            error_msg = f"Unexpected upload error: {str(e)}"
+            self.logger.exception(error_msg)
+            return UploadResult.failure_result(error_msg, StorageProviderType.MINIO)
     
     def download(self, key: str) -> Optional[BinaryIO]:
-        raise NotImplementedError("MinIOProvider not yet implemented")
+        try:
+            import io
+            minio_key = self._get_key(key)
+            
+            buffer = io.BytesIO()
+            self.client.download_fileobj(self.bucket, minio_key, buffer)
+            buffer.seek(0)
+            
+            self.logger.debug(f"Downloaded file from MinIO: {minio_key}")
+            return buffer
+            
+        except self.ClientError as e:
+            if e.response.get('Error', {}).get('Code') == '404':
+                self.logger.warning(f"File not found in MinIO: {minio_key}")
+                return None
+            error_msg = f"MinIO download failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return None
+        except Exception as e:
+            error_msg = f"Unexpected download error: {str(e)}"
+            self.logger.exception(error_msg)
+            return None
     
     def delete(self, key: str) -> bool:
-        raise NotImplementedError("MinIOProvider not yet implemented")
+        try:
+            minio_key = self._get_key(key)
+            
+            self.client.delete_object(Bucket=self.bucket, Key=minio_key)
+            
+            self.logger.info(f"Deleted file from MinIO: {minio_key}")
+            return True
+            
+        except self.ClientError as e:
+            error_msg = f"MinIO delete failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected delete error: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
     
     def get_url(self, key: str, expires_in: int = 3600) -> str:
-        raise NotImplementedError("MinIOProvider not yet implemented")
+        try:
+            minio_key = self._get_key(key)
+            
+            if not self.exists(key):
+                raise FileNotFoundError(f"File not found: {key}")
+            
+            # For MinIO, return direct URL (presigned URLs also supported)
+            storage_url = f"{self.endpoint_url}/{self.bucket}/{minio_key}"
+            
+            self.logger.debug(f"Generated URL for {minio_key}")
+            return storage_url
+            
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            error_msg = f"Failed to generate URL: {str(e)}"
+            self.logger.exception(error_msg)
+            raise
     
     def exists(self, key: str) -> bool:
-        raise NotImplementedError("MinIOProvider not yet implemented")
+        try:
+            minio_key = self._get_key(key)
+            
+            self.client.head_object(Bucket=self.bucket, Key=minio_key)
+            return True
+            
+        except self.ClientError as e:
+            if e.response.get('Error', {}).get('Code') in ['404', 'NoSuchKey']:
+                return False
+            error_msg = f"MinIO exists check failed: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected exists check error: {str(e)}"
+            self.logger.exception(error_msg)
+            return False
