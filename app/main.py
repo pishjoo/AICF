@@ -16,6 +16,7 @@ from core.config import settings
 from core.logging_config import logger, log_error, log_request, RequestLoggingMiddleware
 from database.connection import engine, Base
 from app.api.routes import router
+from app.api.routes_ai import router as ai_router
 from app.middleware.tenant_isolation import TenantIsolationMiddleware
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -77,6 +78,9 @@ All endpoints require JWT Bearer token authentication except:
     
     # Include API router
     app.include_router(router, prefix=settings.API_PREFIX)
+    
+    # Include AI provider management router
+    app.include_router(ai_router, prefix=settings.API_PREFIX)
     
     # Register global exception handlers
     register_exception_handlers(app)

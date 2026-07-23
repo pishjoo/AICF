@@ -1375,3 +1375,162 @@ class AnalyticsJob(TenantMixin, Base):
         return f"<AnalyticsJob(id={self.id}, type='{self.job_type}', status='{self.status}')>"
 
 
+# =============================================================================
+# PHASE 9: AI PROVIDER MANAGEMENT MODELS
+# =============================================================================
+
+class ProviderType(str, enum.Enum):
+    """AI provider type enumeration."""
+    TEXT = "text"  # LLM for scripts, research, etc.
+    IMAGE = "image"  # Image generation
+    VIDEO = "video"  # Video generation
+    VOICE = "voice"  # Text-to-speech
+    RESEARCH = "research"  # Research/web search
+
+
+class AIProvider(TenantMixin, Base):
+    """
+    AIProvider model - External AI service configuration.
+    
+    Stores configuration for external AI providers like OpenAI, Anthropic,
+    ElevenLabs, Runway, etc. API keys are encrypted at rest.
+    """
+    __tablename__ = "ai_providers"
+    
+    # Provider identification
+    name = Column(String(100), nullable=False)  # Human-readable name
+    provider_type = Column(SQLEnum(ProviderType), nullable=False, index=True)  # text, image, video, voice, research
+    provider_name = Column(String(50), nullable=False, index=True)  # deepseek, openai, elevenlabs, runway, perplexity
+    
+    # API Configuration
+    api_endpoint = Column(String(500), nullable=True)  # Custom endpoint (for self-hosted or alternative endpoints)
+    encrypted_api_key = Column(Text, nullable=False)  # Encrypted API key
+    configuration = Column(JSON, default=dict)  # Additional provider-specific configuration
+    
+    # Status
+    is_active = Column(Boolean, default=True, index=True)
+    last_tested_at = Column(DateTime(timezone=True), nullable=True)
+    last_test_status = Column(String(50), nullable=True)  # success, failed
+    
+    # Relationships
+    organization = relationship("Organization")
+    ai_profile_text = relationship("AIProfile", back_populates="text_provider", foreign_keys="AIProfile.text_provider_id")
+    ai_profile_image = relationship("AIProfile", back_populates="image_provider", foreign_keys="AIProfile.image_provider_id")
+    ai_profile_video = relationship("AIProfile", back_populates="video_provider", foreign_keys="AIProfile.video_provider_id")
+    ai_profile_voice = relationship("AIProfile", back_populates="voice_provider", foreign_keys="AIProfile.voice_provider_id")
+    ai_profile_research = relationship("AIProfile", back_populates="research_provider", foreign_keys="AIProfile.research_provider_id")
+    usage_records = relationship("AIUsageRecord", back_populates="provider", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_provider_org_type', 'organization_id', 'provider_type'),
+        Index('idx_provider_active', 'is_active'),
+    )
+    
+    def __repr__(self):
+        return f"<AIProvider(id={self.id}, name='{self.name}', type='{self.provider_type}')>"
+
+
+class AIProfile(TenantMixin, Base):
+    """
+    AIProfile model - AI provider profile grouping.
+    
+    Groups multiple AI providers into a single profile that can be used
+    by workflows. Allows switching entire AI stack without code changes.
+    
+    Example Profile: "YouTube Horror Channel"
+    - Text Provider: DeepSeek
+    - Image Provider: Nano Banana
+    - Video Provider: Runway
+    - Voice Provider: ElevenLabs
+    - Research Provider: Perplexity
+    """
+    __tablename__ = "ai_profiles"
+    
+    # Identification
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Provider assignments (foreign keys to AIProvider)
+    text_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    image_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    video_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    voice_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    research_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    
+    # Configuration
+    configuration = Column(JSON, default=dict)  # Profile-level configuration
+    
+    # Status
+    is_default = Column(Boolean, default=False, index=True)  # Default profile for organization
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    organization = relationship("Organization")
+    text_provider = relationship("AIProvider", foreign_keys=[text_provider_id])
+    image_provider = relationship("AIProvider", foreign_keys=[image_provider_id])
+    video_provider = relationship("AIProvider", foreign_keys=[video_provider_id])
+    voice_provider = relationship("AIProvider", foreign_keys=[voice_provider_id])
+    research_provider = relationship("AIProvider", foreign_keys=[research_provider_id])
+    usage_records = relationship("AIUsageRecord", back_populates="profile", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_profile_org', 'organization_id'),
+        Index('idx_profile_default', 'is_default'),
+    )
+    
+    def __repr__(self):
+        return f"<AIProfile(id={self.id}, name='{self.name}', org={self.organization_id})>"
+
+
+class AIUsageRecord(TenantMixin, Base):
+    """
+    AIUsageRecord model - AI usage and cost tracking.
+    
+    Tracks usage of AI providers including tokens, costs, and execution time.
+    Used for cost analysis and optimization.
+    """
+    __tablename__ = "ai_usage_records"
+    
+    # Foreign keys
+    profile_id = Column(Integer, ForeignKey("ai_profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True, index=True)
+    
+    # Operation details
+    operation_type = Column(String(50), nullable=False, index=True)  # e.g., 'text_generation', 'image_generation'
+    model_name = Column(String(100), nullable=True)  # Specific model used
+    
+    # Usage metrics
+    tokens_used = Column(BigInteger, default=0)
+    input_tokens = Column(BigInteger, default=0)
+    output_tokens = Column(BigInteger, default=0)
+    cost_usd = Column(Float, default=0.0)
+    execution_time_ms = Column(Integer, default=0)  # Execution time in milliseconds
+    
+    # Context
+    job_id = Column(Integer, ForeignKey("content_jobs.id", ondelete="SET NULL"), nullable=True)  # Link to ContentJob
+    request_metadata = Column(JSON, default=dict)  # Additional request context
+    response_metadata = Column(JSON, default=dict)  # Response metadata
+    
+    # Timestamps included from TenantMixin
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    organization = relationship("Organization")
+    profile = relationship("AIProfile", back_populates="usage_records")
+    provider = relationship("AIProvider", back_populates="usage_records")
+    content_job = relationship("ContentJob", back_populates="ai_usage_records")
+    
+    __table_args__ = (
+        Index('idx_usage_org_created', 'organization_id', 'created_at'),
+        Index('idx_usage_cost', 'cost_usd'),
+    )
+    
+    def __repr__(self):
+        return f"<AIUsageRecord(id={self.id}, operation='{self.operation_type}', cost={self.cost_usd})>"
+
+
+# Add relationship to ContentJob for AI usage tracking
+# This needs to be added after AIUsageRecord is defined
+ContentJob.ai_usage_records = relationship("AIUsageRecord", back_populates="content_job")
+
+
