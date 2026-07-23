@@ -1,146 +1,31 @@
 """
-FFmpeg Wrapper Foundation
+FFmpeg Executor Implementation
 
-FFmpeg executor interface for video rendering operations.
-Supports CPU and GPU-accelerated rendering.
+Concrete implementation of FFmpegExecutor with GPU support.
 """
 
 import logging
 import subprocess
 import json
-from abc import ABC, abstractmethod
+import time
 from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass
 from pathlib import Path
 
+from app.rendering.ffmpeg import (
+    FFmpegExecutor,
+    MediaMetadata,
+    FFmpegExecutionResult,
+)
 from app.rendering.gpu import RenderBackend, get_gpu_manager
-
-
-@dataclass
-class MediaMetadata:
-    """Metadata extracted from media file."""
-    
-    duration_seconds: Optional[float] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    fps: Optional[float] = None
-    codec: Optional[str] = None
-    bitrate: Optional[int] = None  # bits per second
-    audio_codec: Optional[str] = None
-    audio_channels: Optional[int] = None
-    audio_sample_rate: Optional[int] = None
-    format: Optional[str] = None
-    file_size_bytes: Optional[int] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "duration_seconds": self.duration_seconds,
-            "width": self.width,
-            "height": self.height,
-            "fps": self.fps,
-            "codec": self.codec,
-            "bitrate": self.bitrate,
-            "audio_codec": self.audio_codec,
-            "audio_channels": self.audio_channels,
-            "audio_sample_rate": self.audio_sample_rate,
-            "format": self.format,
-            "file_size_bytes": self.file_size_bytes
-        }
-
-
-@dataclass
-class FFmpegExecutionResult:
-    """Result of FFmpeg execution."""
-    
-    success: bool
-    return_code: int
-    stdout: str
-    stderr: str
-    command: List[str]
-    duration_seconds: Optional[float] = None
-    error_message: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "success": self.success,
-            "return_code": self.return_code,
-            "stdout": self.stdout,
-            "stderr": self.stderr,
-            "command": self.command,
-            "duration_seconds": self.duration_seconds,
-            "error_message": self.error_message
-        }
-
-
-class FFmpegExecutor(ABC):
-    """
-    Abstract base class for FFmpeg execution.
-    
-    Provides interface for:
-    - execute() - Run FFmpeg commands
-    - validate_input() - Validate input files
-    - get_metadata() - Extract media metadata
-    """
-    
-    def __init__(self, ffmpeg_path: str = "ffmpeg", ffprobe_path: str = "ffprobe"):
-        self.ffmpeg_path = ffmpeg_path
-        self.ffprobe_path = ffprobe_path
-        self.logger = logging.getLogger(f"rendering.ffmpeg.{type(self).__name__}")
-    
-    @abstractmethod
-    def execute(
-        self,
-        args: List[str],
-        timeout: float = 300.0,
-        capture_output: bool = True
-    ) -> FFmpegExecutionResult:
-        """
-        Execute FFmpeg with given arguments.
-        
-        Args:
-            args: FFmpeg command arguments (without 'ffmpeg' prefix)
-            timeout: Maximum execution time in seconds
-            capture_output: Whether to capture stdout/stderr
-            
-        Returns:
-            Execution result with output and status
-        """
-        pass
-    
-    @abstractmethod
-    def validate_input(self, input_path: str) -> Tuple[bool, Optional[str]]:
-        """
-        Validate an input file for FFmpeg processing.
-        
-        Args:
-            input_path: Path to input file
-            
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
-        pass
-    
-    @abstractmethod
-    def get_metadata(self, input_path: str) -> Optional[MediaMetadata]:
-        """
-        Get metadata from a media file using ffprobe.
-        
-        Args:
-            input_path: Path to media file
-            
-        Returns:
-            MediaMetadata or None if extraction failed
-        """
-        pass
 
 
 class SubprocessFFmpegExecutor(FFmpegExecutor):
     """
     FFmpeg executor using subprocess.
     
-    Standard implementation for local FFmpeg installations.
+    Supports CPU and GPU-accelerated rendering.
     """
-    
+
     def __init__(
         self,
         ffmpeg_path: str = "ffmpeg",
@@ -149,20 +34,35 @@ class SubprocessFFmpegExecutor(FFmpegExecutor):
     ):
         super().__init__(ffmpeg_path, ffprobe_path)
         self.global_args = global_args or [
-            "-loglevel", "warning",  # Reduce log verbosity
-            "-y"  # Overwrite output files without asking
+            "-loglevel", "warning",
+            "-y"
         ]
-    
+        self.gpu_manager = get_gpu_manager()
+
     def execute(
         self,
         args: List[str],
         timeout: float = 300.0,
-        capture_output: bool = True
+        capture_output: bool = True,
+        gpu_backend: Optional[RenderBackend] = None,
+        gpu_index: Optional[int] = None
     ) -> FFmpegExecutionResult:
-        """Execute FFmpeg command using subprocess."""
-        import time
-        
+        """Execute FFmpeg command with optional GPU acceleration."""
         command = [self.ffmpeg_path] + self.global_args + args
+        
+        # Add GPU-specific arguments if backend specified
+        gpu_used = False
+        backend_used = None
+        
+        if gpu_backend and gpu_backend != RenderBackend.CPU:
+            if gpu_index is None:
+                gpu_index = 0
+            
+            gpu_args = self.gpu_manager.get_ffmpeg_gpu_args(gpu_index, gpu_backend)
+            command = [self.ffmpeg_path] + self.global_args + gpu_args + args
+            gpu_used = True
+            backend_used = gpu_backend.value
+        
         self.logger.debug(f"Executing FFmpeg: {' '.join(command)}")
         
         start_time = time.time()
@@ -201,7 +101,10 @@ class SubprocessFFmpegExecutor(FFmpegExecutor):
                 stderr=stderr,
                 command=command,
                 duration_seconds=duration,
-                error_message=stderr if not success else None
+                error_message=stderr if not success else None,
+                gpu_used=gpu_used,
+                gpu_index=gpu_index,
+                backend_used=backend_used
             )
             
         except subprocess.TimeoutExpired:
@@ -235,26 +138,23 @@ class SubprocessFFmpegExecutor(FFmpegExecutor):
                 command=command,
                 error_message=str(e)
             )
-    
+
     def validate_input(self, input_path: str) -> Tuple[bool, Optional[str]]:
         """Validate input file exists and is readable by FFmpeg."""
         path = Path(input_path)
         
-        # Check file exists
         if not path.exists():
             return False, f"Input file does not exist: {input_path}"
         
-        # Check file is readable
         if not path.is_file():
             return False, f"Input path is not a file: {input_path}"
         
-        # Try to get metadata to verify it's a valid media file
         metadata = self.get_metadata(input_path)
         if metadata is None:
             return False, f"Cannot read media metadata from: {input_path}"
         
         return True, None
-    
+
     def get_metadata(self, input_path: str) -> Optional[MediaMetadata]:
         """Extract metadata using ffprobe."""
         probe_args = [
@@ -281,10 +181,7 @@ class SubprocessFFmpegExecutor(FFmpegExecutor):
             
             data = json.loads(result.stdout)
             
-            # Extract format info
             format_info = data.get("format", {})
-            
-            # Extract stream info (video and audio)
             streams = data.get("streams", [])
             video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
             audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
@@ -308,7 +205,7 @@ class SubprocessFFmpegExecutor(FFmpegExecutor):
         except Exception as e:
             self.logger.error(f"Failed to extract metadata from {input_path}: {e}")
             return None
-    
+
     def _parse_fps(self, video_stream: Dict[str, Any]) -> Optional[float]:
         """Parse FPS from video stream info."""
         r_frame_rate = video_stream.get("r_frame_rate")
