@@ -889,7 +889,7 @@ class Asset(TenantMixin, Base):
     # Metadata
     alt_text = Column(String(500), nullable=True)
     tags = Column(JSON, default=list)
-    metadata = Column(JSON, default=dict)  # Additional metadata from storage provider
+    file_metadata = Column(JSON, default=dict)  # Additional metadata from storage provider (renamed from 'metadata')
     extra_data = Column(JSON, default=dict)
     
     # Relationships
@@ -995,5 +995,182 @@ class AgentExecution(TenantMixin, Base):
 # Old ContentProfile -> New ChannelProfile
 # Old Project -> Can be mapped to Episode or kept separate during migration
 # Old WorkflowStage -> Now tracked via ContentJob and AgentExecution
+
+
+# =============================================================================
+# RENDERING MODELS (Phase 8A)
+# =============================================================================
+
+class RenderingJobStatus(str, enum.Enum):
+    """Rendering job lifecycle status."""
+    CREATED = "created"
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class RenderingJob(TenantMixin, Base):
+    """
+    RenderingJob model - Video rendering execution tracking.
+    
+    Tracks rendering jobs for video production including FFmpeg operations,
+    transcoding, and output generation.
+    """
+    __tablename__ = "rendering_jobs"
+    
+    # Identification
+    job_id = Column(String(100), unique=True, nullable=True, index=True)  # UUID for external reference
+    name = Column(String(255), nullable=False)
+    job_type = Column(String(100), nullable=False)  # transcode, merge, render, etc.
+    
+    # Status
+    status = Column(SQLEnum(RenderingJobStatus), default=RenderingJobStatus.CREATED, index=True)
+    progress = Column(Integer, default=0)  # 0-100 percentage
+    
+    # Foreign keys
+    episode_id = Column(Integer, ForeignKey("episodes.id", ondelete="CASCADE"), nullable=True, index=True)
+    composition_id = Column(Integer, ForeignKey("video_compositions.id", ondelete="SET NULL"), nullable=True)
+    
+    # Input/Output
+    input_files = Column(JSON, default=list)  # List of input file paths/keys
+    output_format = Column(String(50), nullable=True)  # mp4, webm, etc.
+    
+    # Parameters
+    parameters = Column(JSON, default=dict)  # Rendering parameters
+    priority = Column(Integer, default=0)  # Job priority
+    
+    # Execution tracking
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    duration_seconds = Column(Float, nullable=True)
+    
+    # Retry handling
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    
+    # Error handling
+    error_message = Column(Text, nullable=True)
+    
+    # Cost tracking
+    compute_time_seconds = Column(Float, nullable=True)
+    worker_cost_usd = Column(Float, default=0.0)
+    
+    # Metadata
+    job_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid reserved word conflict
+    
+    # Relationships
+    organization = relationship("Organization")
+    episode = relationship("Episode")
+    composition = relationship("VideoComposition", back_populates="rendering_jobs")
+    outputs = relationship("RenderOutput", back_populates="rendering_job", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_rendering_job_org', 'organization_id'),
+        Index('idx_rendering_job_status', 'status'),
+        Index('idx_rendering_job_episode', 'episode_id'),
+        Index('idx_rendering_job_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<RenderingJob(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
+class VideoComposition(TenantMixin, Base):
+    """
+    VideoComposition model - Video editing composition definition.
+    
+    Defines the structure of a video composition including clips,
+    transitions, audio tracks, and subtitles.
+    """
+    __tablename__ = "video_compositions"
+    
+    # Identification
+    composition_id = Column(String(100), unique=True, nullable=True, index=True)  # UUID
+    name = Column(String(255), nullable=False)
+    
+    # Status
+    status = Column(String(50), default="draft")  # draft, processing, completed, failed
+    
+    # Foreign keys
+    episode_id = Column(Integer, ForeignKey("episodes.id", ondelete="CASCADE"), nullable=True, index=True)
+    
+    # Composition data
+    clips = Column(JSON, default=list)  # List of clip definitions
+    transitions = Column(JSON, default=list)  # List of transition definitions
+    audio_tracks = Column(JSON, default=list)  # List of audio track definitions
+    subtitles = Column(JSON, default=list)  # List of subtitle track definitions
+    
+    # Output settings
+    resolution = Column(String(20), default="1920x1080")  # Width x Height
+    fps = Column(Float, default=30.0)  # Frames per second
+    
+    # Duration
+    duration_seconds = Column(Float, nullable=True)
+    
+    # Metadata
+    composition_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid reserved word conflict
+    
+    # Relationships
+    organization = relationship("Organization")
+    episode = relationship("Episode")
+    rendering_jobs = relationship("RenderingJob", back_populates="composition")
+    
+    __table_args__ = (
+        Index('idx_composition_org', 'organization_id'),
+        Index('idx_composition_episode', 'episode_id'),
+        Index('idx_composition_status', 'status'),
+    )
+    
+    def __repr__(self):
+        return f"<VideoComposition(id={self.id}, name='{self.name}')>"
+
+
+class RenderOutput(TenantMixin, Base):
+    """
+    RenderOutput model - Rendering output file tracking.
+    
+    Tracks output files generated by rendering jobs including
+    videos, thumbnails, subtitles, and intermediate files.
+    """
+    __tablename__ = "render_outputs"
+    
+    # Identification
+    output_id = Column(String(100), unique=True, nullable=True, index=True)  # UUID
+    output_type = Column(String(50), nullable=False)  # video, thumbnail, subtitle, intermediate
+    
+    # Foreign keys
+    rendering_job_id = Column(Integer, ForeignKey("rendering_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Storage
+    storage_key = Column(String(500), nullable=False)  # Storage path/key
+    storage_url = Column(String(500), nullable=True)  # Access URL
+    
+    # File info
+    file_size_bytes = Column(BigInteger, nullable=True)
+    duration_seconds = Column(Float, nullable=True)  # For video/audio outputs
+    resolution = Column(String(20), nullable=True)  # For video/image outputs
+    
+    # Checksums
+    checksum_md5 = Column(String(64), nullable=True)
+    checksum_sha256 = Column(String(128), nullable=True)
+    
+    # Metadata
+    output_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid reserved word conflict
+    
+    # Relationships
+    organization = relationship("Organization")
+    rendering_job = relationship("RenderingJob", back_populates="outputs")
+    
+    __table_args__ = (
+        Index('idx_render_output_org', 'organization_id'),
+        Index('idx_render_output_job', 'rendering_job_id'),
+        Index('idx_render_output_type', 'output_type'),
+    )
+    
+    def __repr__(self):
+        return f"<RenderOutput(id={self.id}, type='{self.output_type}', job_id={self.rendering_job_id})>"
 
 
