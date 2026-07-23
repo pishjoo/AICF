@@ -1174,3 +1174,204 @@ class RenderOutput(TenantMixin, Base):
         return f"<RenderOutput(id={self.id}, type='{self.output_type}', job_id={self.rendering_job_id})>"
 
 
+# =============================================================================
+# PUBLISHING & PLATFORM INTEGRATION MODELS
+# =============================================================================
+
+class PublishingCredential(TenantMixin, Base):
+    """
+    PublishingCredential model - Encrypted platform credentials.
+    
+    Stores OAuth tokens, API keys, and other authentication credentials
+    for external publishing platforms with encryption at rest.
+    """
+    __tablename__ = "publishing_credentials"
+    
+    # Platform identification
+    platform = Column(String(50), nullable=False, index=True)  # e.g., 'youtube', 'vimeo'
+    credential_type = Column(String(50), nullable=False)  # e.g., 'oauth2', 'api_key'
+    account_name = Column(String(255), nullable=True)  # Human-readable account identifier
+    
+    # Encrypted credential data
+    encrypted_data = Column(Text, nullable=False)  # JSON blob, encrypted
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # For expiring tokens
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Extra metadata
+    extra_data = Column(JSON, default=dict)
+    
+    __table_args__ = (
+        Index('idx_cred_org_platform', 'organization_id', 'platform'),
+        Index('idx_cred_active', 'is_active'),
+    )
+    
+    def __repr__(self):
+        return f"<PublishingCredential(id={self.id}, platform='{self.platform}', org={self.organization_id})>"
+
+
+class PublishingState(TenantMixin, Base):
+    """
+    PublishingState model - Persistent publishing operation state.
+    
+    Tracks the state machine of publishing operations across platforms,
+    enabling recovery from failures and audit trails.
+    """
+    __tablename__ = "publishing_states"
+    
+    # Foreign keys
+    episode_id = Column(Integer, ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    credential_id = Column(Integer, ForeignKey("publishing_credentials.id"), nullable=True)
+    
+    # Platform identification
+    platform = Column(String(50), nullable=False, index=True)
+    
+    # State machine
+    state = Column(String(50), nullable=False, default="pending", index=True)  # pending, uploading, processing, published, failed, retrying
+    previous_state = Column(String(50), nullable=True)
+    
+    # Error tracking
+    last_error = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    
+    # Timestamps
+    transitioned_at = Column(DateTime(timezone=True), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Metadata
+    state_metadata = Column(JSON, default=dict)  # Platform-specific publish data, video IDs, URLs
+    external_id = Column(String(255), nullable=True)  # Platform's video/content ID
+    external_url = Column(String(500), nullable=True)
+    
+    __table_args__ = (
+        Index('idx_pub_state_episode', 'episode_id'),
+        Index('idx_pub_state_org_platform', 'organization_id', 'platform'),
+        Index('idx_pub_state_state', 'state'),
+    )
+    
+    def __repr__(self):
+        return f"<PublishingState(id={self.id}, episode={self.episode_id}, platform='{self.platform}', state='{self.state}')>"
+
+
+class PlatformWebhook(TenantMixin, Base):
+    """
+    PlatformWebhook model - Webhook configurations for platform callbacks.
+    
+    Manages webhook endpoints for receiving events from external platforms
+    such as publish completion, analytics updates, etc.
+    """
+    __tablename__ = "platform_webhooks"
+    
+    # Platform identification
+    platform = Column(String(50), nullable=False, index=True)
+    
+    # Webhook configuration
+    endpoint_url = Column(String(500), nullable=False)
+    secret_hash = Column(String(255), nullable=False)  # Hashed signing secret
+    events = Column(JSON, default=list)  # List of event types to subscribe to
+    
+    # Associated credential (optional)
+    credential_id = Column(Integer, ForeignKey("publishing_credentials.id"), nullable=True)
+    
+    # Verification status
+    is_verified = Column(Boolean, default=False)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    verification_token = Column(String(255), nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    
+    # Delivery tracking
+    last_delivery_at = Column(DateTime(timezone=True), nullable=True)
+    last_delivery_success = Column(Boolean, nullable=True)
+    last_response_code = Column(Integer, nullable=True)
+    last_error = Column(Text, nullable=True)
+    consecutive_failures = Column(Integer, default=0)
+    
+    __table_args__ = (
+        Index('idx_webhook_org_platform', 'organization_id', 'platform'),
+        Index('idx_webhook_active', 'is_active'),
+    )
+    
+    def __repr__(self):
+        return f"<PlatformWebhook(id={self.id}, platform='{self.platform}', url='{self.endpoint_url}')>"
+
+
+class PlatformRateLimit(TenantMixin, Base):
+    """
+    PlatformRateLimit model - API rate limit tracking per platform.
+    
+    Tracks request counts and enforces rate limits to prevent API throttling
+    from external platforms.
+    """
+    __tablename__ = "platform_rate_limits"
+    
+    # Platform identification
+    platform = Column(String(50), nullable=False, index=True)
+    
+    # Rate limit configuration
+    requests_per_minute = Column(Integer, default=60)
+    requests_per_hour = Column(Integer, nullable=True)
+    requests_per_day = Column(Integer, nullable=True)
+    
+    # Current counters
+    request_count_this_minute = Column(Integer, default=0)
+    request_count_this_hour = Column(Integer, default=0)
+    request_count_today = Column(Integer, default=0)
+    
+    # Tracking
+    last_request_at = Column(DateTime(timezone=True), nullable=True)
+    last_reset_date = Column(DateTime(timezone=True), nullable=True)  # Date when counters were reset
+    
+    __table_args__ = (
+        Index('idx_rate_limit_org_platform', 'organization_id', 'platform'),
+    )
+    
+    def __repr__(self):
+        return f"<PlatformRateLimit(id={self.id}, platform='{self.platform}', org={self.organization_id})>"
+
+
+class AnalyticsJob(TenantMixin, Base):
+    """
+    AnalyticsJob model - Scheduled analytics collection jobs.
+    
+    Supports background jobs for collecting analytics data from platforms
+    on a scheduled basis.
+    """
+    __tablename__ = "analytics_jobs"
+    
+    # Job configuration
+    job_type = Column(String(50), nullable=False, index=True)  # e.g., 'video_analytics', 'channel_analytics'
+    platform = Column(String(50), nullable=True, index=True)  # Optional platform filter
+    episode_id = Column(Integer, ForeignKey("episodes.id", ondelete="CASCADE"), nullable=True, index=True)
+    
+    # Scheduling
+    scheduled_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    priority = Column(Integer, default=0)  # Higher = more urgent
+    
+    # Execution state
+    status = Column(String(50), default="pending", index=True)  # pending, running, completed, failed
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Retry tracking
+    retry_count = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)
+    
+    # Results
+    result = Column(JSON, nullable=True)  # Collected analytics data
+    job_metadata = Column(JSON, default=dict)
+    
+    __table_args__ = (
+        Index('idx_analytics_job_status', 'status', 'scheduled_at'),
+        Index('idx_analytics_job_org', 'organization_id'),
+    )
+    
+    def __repr__(self):
+        return f"<AnalyticsJob(id={self.id}, type='{self.job_type}', status='{self.status}')>"
+
+
