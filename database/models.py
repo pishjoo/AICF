@@ -682,6 +682,8 @@ class Episode(TenantMixin, Base):
     content_jobs = relationship("ContentJob", back_populates="episode", cascade="all, delete-orphan")
     agent_executions = relationship("AgentExecution", back_populates="episode", cascade="all, delete-orphan")
     assets = relationship("Asset", back_populates="episode", cascade="all, delete-orphan")
+    quality_scores = relationship("MediaQualityScore", back_populates="episode")
+    approval_requests = relationship("ApprovalRequest", back_populates="episode")
     
     __table_args__ = (
         Index('idx_episode_status', 'status'),
@@ -827,6 +829,7 @@ class ContentJob(TenantMixin, Base):
     organization = relationship("Organization")
     episode = relationship("Episode", back_populates="content_jobs")
     production_template = relationship("ProductionTemplate", back_populates="content_jobs")
+    approval_requests = relationship("ApprovalRequest", back_populates="content_job")
     
     __table_args__ = (
         Index('idx_job_episode', 'episode_id'),
@@ -892,6 +895,10 @@ class Asset(TenantMixin, Base):
     # Relationships
     organization = relationship("Organization")
     episode = relationship("Episode", back_populates="assets")
+    lifecycle_transitions = relationship("AssetLifecycleTransition", back_populates="asset")
+    audit_logs = relationship("AssetAuditLog", back_populates="asset")
+    quality_scores = relationship("MediaQualityScore", back_populates="asset")
+    approval_requests = relationship("ApprovalRequest", back_populates="asset")
     
     __table_args__ = (
         Index('idx_asset_episode', 'episode_id'),
@@ -968,6 +975,7 @@ class AgentExecution(TenantMixin, Base):
     organization = relationship("Organization")
     episode = relationship("Episode", back_populates="agent_executions")
     content_job = relationship("ContentJob")
+    approval_requests = relationship("ApprovalRequest", back_populates="agent_execution")
     
     __table_args__ = (
         Index('idx_agent_episode', 'episode_id'),
