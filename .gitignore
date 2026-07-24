@@ -43,6 +43,21 @@ target/
 # MyPy
 .mypy_cache/
 
+<<<<<<< HEAD
 # PyTest
 .pytest_cache/
 ```
+=======
+# Documentation
+docs/*.md
+
+# new files
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc
+.env
+storage/
+logs/```
+>>>>>>> 79399ec (Update gitignore)
