@@ -4,7 +4,7 @@ Asset Lifecycle Models
 Defines asset states, transitions, and audit log models for lifecycle management.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, JSON, Text, Index
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, JSON, Text, Index, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
