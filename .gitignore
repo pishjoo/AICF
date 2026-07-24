@@ -1,51 +1,15 @@
-```
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+Update gitignore
+fd51cc2
+.gitignore
 
-# Compiled and build artifacts
-*.o
-*.obj
-*.out
-*.so
-*.dll
-*.a
-*.lib
-
-# Dependencies
-.venv/
-venv/
-.env
-.env.local
-*.env.*
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Editors
-.vscode/
-.idea/
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Build directories
-dist/
-build/
-target/
-
+@@ -43,6 +43,21 @@ target/
 # MyPy
 .mypy_cache/
 
 <<<<<<< HEAD
 # PyTest
 .pytest_cache/
+``` No newline at end of file
 ```
 =======
 # Documentation
