@@ -1,11 +1,11 @@
 """
 Database Connection Module
 
-Manages PostgreSQL database connections using SQLAlchemy 2.x.
-Provides session management and engine configuration.
+Manages database connections using SQLAlchemy 2.x.
+Supports SQLite for development and PostgreSQL for production.
 """
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.pool import QueuePool
 from contextlib import contextmanager
@@ -14,22 +14,46 @@ from typing import Generator
 from core.config import settings
 
 
-# Create SQLAlchemy engine with PostgreSQL-optimized settings
-engine = create_engine(
-    settings.DATABASE_URL,
-    echo=settings.DB_ECHO,
-    poolclass=QueuePool,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,  # Recycle connections after 1 hour
-    connect_args={
-        "options": "-c timezone=utc"  # Set timezone to UTC for all connections
-    }
-)
+# Database URL
+DATABASE_URL = settings.DATABASE_URL
+
+
+# SQLite configuration (development)
+if DATABASE_URL.startswith("sqlite"):
+
+    engine = create_engine(
+        DATABASE_URL,
+        echo=settings.DB_ECHO,
+        connect_args={
+            "check_same_thread": False
+        }
+    )
+
+
+# PostgreSQL configuration (production)
+else:
+
+    engine = create_engine(
+        DATABASE_URL,
+        echo=settings.DB_ECHO,
+        poolclass=QueuePool,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=3600,
+        connect_args={
+            "options": "-c timezone=utc"
+        }
+    )
+
 
 # Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
 
 # Base class for models
 Base = declarative_base()
@@ -39,46 +63,54 @@ Base = declarative_base()
 def get_db_session() -> Generator[Session, None, None]:
     """
     Context manager for database sessions.
-
-    Usage:
-        with get_db_session() as db:
-            # use db session
     """
+
     db = SessionLocal()
+
     try:
         yield db
         db.commit()
+
     except Exception:
         db.rollback()
         raise
+
     finally:
         db.close()
 
 
+
 def init_db():
-    """Initialize database tables by creating all models."""
-    # Import all models to ensure they're registered with Base.metadata
-    from database import models  # noqa: F401
+    """
+    Initialize database tables.
+    """
+
+    from database import models
+
     Base.metadata.create_all(bind=engine)
 
 
+
 def drop_db():
-    """Drop all database tables (use with caution)."""
-    from database import models  # noqa: F401
+    """
+    Drop all database tables.
+    """
+
+    from database import models
+
     Base.metadata.drop_all(bind=engine)
+
 
 
 def get_db() -> Generator[Session, None, None]:
     """
-    Dependency for FastAPI to get database session.
-
-    Usage in API:
-        @app.get("/items")
-        def get_items(db: Session = Depends(get_db)):
-            ...
+    FastAPI database dependency.
     """
+
     db = SessionLocal()
+
     try:
         yield db
+
     finally:
         db.close()

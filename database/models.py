@@ -1534,3 +1534,31 @@ class AIUsageRecord(TenantMixin, Base):
 ContentJob.ai_usage_records = relationship("AIUsageRecord", back_populates="content_job")
 
 
+# =============================================================================
+# EXTERNAL MODEL REGISTRATION
+# =============================================================================
+# Several relationships declared above (e.g. Asset.quality_scores,
+# Episode.approval_requests, ContentJob.approval_requests,
+# Asset.lifecycle_transitions) reference ORM classes that are defined in the
+# sibling `aicf.app` package rather than in this file:
+#
+#   - MediaQualityScore          (aicf/app/media/evaluation/models.py)
+#   - ApprovalRequest            (aicf/app/workflow/approval/models.py)
+#   - AssetLifecycleTransition   (aicf/app/assets/lifecycle/models.py)
+#   - AssetAuditLog              (aicf/app/assets/lifecycle/models.py)
+#
+# These classes share the same declarative Base, but SQLAlchemy only resolves
+# relationship("ClassName") strings against classes that have actually been
+# imported (and therefore registered in the mapper registry) at the time
+# mappers are configured. Importing them here ensures that any code path that
+# imports `database.models` — routes, auth deps, agents, init_db, etc. — gets a
+# complete and consistent mapper registry, instead of failing with
+# "expression 'X' failed to locate a name".
+#
+# Only the `models` submodules are imported (not the package __init__ files) to
+# avoid eagerly pulling in service-layer dependencies.
+import aicf.app.media.evaluation.models      # noqa: E402,F401  -> MediaQualityScore
+import aicf.app.workflow.approval.models     # noqa: E402,F401  -> ApprovalRequest
+import aicf.app.assets.lifecycle.models      # noqa: E402,F401  -> AssetLifecycleTransition, AssetAuditLog
+
+

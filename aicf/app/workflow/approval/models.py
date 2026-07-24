@@ -5,7 +5,7 @@ Defines approval request models and status for human review workflows.
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, JSON, Text, Boolean, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from sqlalchemy.sql import func
 import enum
 
@@ -90,7 +90,10 @@ class ApprovalRequest(Base):
     due_at = Column(DateTime(timezone=True), nullable=True)
     
     # Metadata
-    metadata = Column(JSON, default=dict)
+    # NOTE: 'metadata' is a reserved attribute name in SQLAlchemy's Declarative
+    # API, so the Python attribute is named 'request_metadata' while the
+    # underlying database column remains 'metadata' for backward compatibility.
+    request_metadata = Column("metadata", JSON, default=dict)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -112,6 +115,6 @@ class ApprovalRequest(Base):
         Index('idx_approval_type', 'request_type'),
         Index('idx_approval_requested', 'requested_by'),
     )
-    
+
     def __repr__(self):
         return f"<ApprovalRequest(id={self.id}, type='{self.request_type}', status='{self.status}')>"
