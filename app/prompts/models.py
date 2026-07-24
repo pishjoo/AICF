@@ -58,7 +58,7 @@ class PromptTemplate(Base):
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     activated_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relationships (using lazy string references - deferred to avoid circular imports)

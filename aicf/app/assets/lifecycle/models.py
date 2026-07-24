@@ -115,8 +115,8 @@ class AssetAuditLog(Base):
     __table_args__ = (
         Index('idx_audit_asset', 'asset_id'),
         Index('idx_audit_org', 'organization_id'),
-        Index('idx_audit_action', 'action'),
-        Index('idx_audit_created', 'created_at'),
+        Index('idx_audit_action_aicf', 'action'),
+        Index('idx_audit_created_aicf', 'created_at'),
     )
     
     def __repr__(self):
