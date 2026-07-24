@@ -1,44 +1,27 @@
+Update gitignore
+fd51cc2
+.gitignore
+
+@@ -43,6 +43,21 @@ target/
+# MyPy
+.mypy_cache/
+
+<<<<<<< HEAD
+# PyTest
+.pytest_cache/
+``` No newline at end of file
 ```
-# Python
+=======
+# Documentation
+docs/*.md
+
+# new files
+*.db
+*.sqlite
+*.sqlite3
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-*.py~
-
-# Dependencies
-.venv/
-venv/
-env/
 .env
-.env.local
-.env.*
-
-# Database
-*.db
-*.db-journal
-
-# Alembic
-alembic/versions/*.py
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Coverage
-.coverage
-htmlcov/
-coverage/
-
-# IDE
-.vscode/
-.idea/
-```
+storage/
+logs/```
+>>>>>>> 79399ec (Update gitignore)
