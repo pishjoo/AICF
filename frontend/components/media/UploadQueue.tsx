@@ -4,28 +4,29 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
 import { FileImage, FileAudio2, FileVideo, File } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const mockQueueItems = [
   {
     id: 1,
     filename: "hero-banner.png",
     assetType: "image" as const,
-    progress: 75,
-    status: "uploading",
+    progress: 100,
+    status: "ready" as const,
   },
   {
     id: 2,
     filename: "podcast-ep01.mp3",
     assetType: "audio" as const,
-    progress: 100,
-    status: "completed",
+    progress: 65,
+    status: "uploading" as const,
   },
   {
     id: 3,
     filename: "product-demo.mp4",
     assetType: "video" as const,
-    progress: 30,
-    status: "uploading",
+    progress: 40,
+    status: "processing" as const,
   },
 ];
 
@@ -44,10 +45,22 @@ function getAssetIcon(assetType: string) {
 
 function getStatusBadge(status: string) {
   switch (status) {
+    case "ready":
+      return (
+        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+          Ready
+        </Badge>
+      );
     case "uploading":
       return (
         <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
           Uploading
+        </Badge>
+      );
+    case "processing":
+      return (
+        <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+          Processing
         </Badge>
       );
     case "completed":
@@ -87,7 +100,7 @@ export function UploadQueue() {
               </div>
               {getStatusBadge(item.status)}
             </div>
-            <Progress value={item.progress} className="h-2" />
+            <Progress value={item.progress} className={cn("h-2", item.status === "uploading" && "animate-pulse")} />
           </CardContent>
         </Card>
       ))}
