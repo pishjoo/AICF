@@ -1,4 +1,5 @@
 import type { ContentProject, PipelineStage } from '@/types/content';
+import type { WorkflowStage, Approval, ActivityEvent } from '@/types/workflow';
 
 export const sampleContentProjects: ContentProject[] = [
   {
@@ -71,4 +72,59 @@ export const getPipelineStagesForProject = (currentStage: string): PipelineStage
           ? 'in_progress'
           : 'pending',
   }));
+};
+
+export const workflowStages: WorkflowStage[] = [
+  { id: '1', name: 'Draft', status: 'completed', completedAt: '2024-01-15T10:00:00Z' },
+  { id: '2', name: 'Review', status: 'active', completedAt: undefined },
+  { id: '3', name: 'Approval', status: 'pending', completedAt: undefined },
+  { id: '4', name: 'Publish', status: 'pending', completedAt: undefined },
+];
+
+export const approvalRequests: Approval[] = [
+  {
+    id: '1',
+    reviewer: 'John Smith',
+    status: 'approved',
+    comment: 'Looks great, approved for publishing.',
+    createdAt: '2024-01-16T09:30:00Z',
+  },
+  {
+    id: '2',
+    reviewer: 'Sarah Johnson',
+    status: 'pending',
+    comment: undefined,
+    createdAt: '2024-01-17T14:00:00Z',
+  },
+  {
+    id: '3',
+    reviewer: 'Mike Chen',
+    status: 'changes_requested',
+    comment: 'Please update the title and add more details to the description.',
+    createdAt: '2024-01-18T11:15:00Z',
+  },
+];
+
+export const activityEvents: ActivityEvent[] = [
+  { id: '1', user: 'Alice Brown', action: 'Created project', timestamp: '2024-01-15T08:00:00Z' },
+  { id: '2', user: 'Bob Wilson', action: 'Updated script', timestamp: '2024-01-15T14:30:00Z' },
+  { id: '3', user: 'John Smith', action: 'Approved review', timestamp: '2024-01-16T09:30:00Z' },
+  { id: '4', user: 'Sarah Johnson', action: 'Requested changes', timestamp: '2024-01-17T10:00:00Z' },
+  { id: '5', user: 'Alice Brown', action: 'Applied feedback', timestamp: '2024-01-17T16:45:00Z' },
+  { id: '6', user: 'Mike Chen', action: 'Started approval process', timestamp: '2024-01-18T11:15:00Z' },
+];
+
+export const getWorkflowStagesForProject = (projectId?: string): WorkflowStage[] => {
+  // In a real implementation, this would filter by projectId
+  return workflowStages;
+};
+
+export const getApprovalsForProject = (projectId?: string): Approval[] => {
+  // In a real implementation, this would filter by projectId
+  return approvalRequests;
+};
+
+export const getActivityEventsForProject = (projectId?: string): ActivityEvent[] => {
+  // In a real implementation, this would filter by projectId
+  return activityEvents;
 };
