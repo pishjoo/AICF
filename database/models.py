@@ -301,8 +301,10 @@ class Permission(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationships (removed incorrect back_populates)
-    # roles = relationship("Role", secondary="role_permissions", back_populates="permissions_list")
+    # Relationships (removed incorrect back_populates to undefined models)
+    # The following models are referenced but not defined in this file:
+    # MediaQualityScore, AssetLifecycleTransition, AssetAuditLog, ApprovalRequest
+    # These relationships should be removed or the models should be defined
     
     def __repr__(self):
         return f"<Permission(id={self.id}, slug='{self.slug}')>"
@@ -606,7 +608,7 @@ class Playlist(TenantMixin, Base):
     # Extra data
     extra_data = Column(JSON, default=dict)
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     channel_profile = relationship("ChannelProfile", back_populates="playlists")
     creator = relationship("User", back_populates="created_playlists", foreign_keys=[creator_id])
@@ -673,7 +675,7 @@ class Episode(TenantMixin, Base):
     # Extra data
     extra_data = Column(JSON, default=dict)
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     playlist = relationship("Playlist", back_populates="episodes")
     channel_profile = relationship("ChannelProfile", back_populates="episodes")
@@ -682,8 +684,7 @@ class Episode(TenantMixin, Base):
     content_jobs = relationship("ContentJob", back_populates="episode", cascade="all, delete-orphan")
     agent_executions = relationship("AgentExecution", back_populates="episode", cascade="all, delete-orphan")
     assets = relationship("Asset", back_populates="episode", cascade="all, delete-orphan")
-    quality_scores = relationship("MediaQualityScore", back_populates="episode")
-    approval_requests = relationship("ApprovalRequest", back_populates="episode")
+    # Removed relationships to undefined models: MediaQualityScore, ApprovalRequest
     
     __table_args__ = (
         Index('idx_episode_status', 'status'),
@@ -756,7 +757,7 @@ class ProductionTemplate(TenantMixin, Base):
     # Extra data
     extra_data = Column(JSON, default=dict)
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     channel_profile = relationship("ChannelProfile", back_populates="production_templates")
     playlists = relationship("Playlist", back_populates="production_template")
@@ -825,11 +826,11 @@ class ContentJob(TenantMixin, Base):
     # Extra data
     extra_data = Column(JSON, default=dict)
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     episode = relationship("Episode", back_populates="content_jobs")
     production_template = relationship("ProductionTemplate", back_populates="content_jobs")
-    approval_requests = relationship("ApprovalRequest", back_populates="content_job")
+    # Removed relationship to undefined model: ApprovalRequest
     
     __table_args__ = (
         Index('idx_job_episode', 'episode_id'),
@@ -892,13 +893,10 @@ class Asset(TenantMixin, Base):
     file_metadata = Column(JSON, default=dict)  # Additional metadata from storage provider (renamed from 'metadata')
     extra_data = Column(JSON, default=dict)
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     episode = relationship("Episode", back_populates="assets")
-    lifecycle_transitions = relationship("AssetLifecycleTransition", back_populates="asset")
-    audit_logs = relationship("AssetAuditLog", back_populates="asset")
-    quality_scores = relationship("MediaQualityScore", back_populates="asset")
-    approval_requests = relationship("ApprovalRequest", back_populates="asset")
+    # Removed relationships to undefined models: AssetLifecycleTransition, AssetAuditLog, MediaQualityScore, ApprovalRequest
     
     __table_args__ = (
         Index('idx_asset_episode', 'episode_id'),
@@ -971,11 +969,11 @@ class AgentExecution(TenantMixin, Base):
     # Extra data
     extra_data = Column(JSON, default=dict)
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     episode = relationship("Episode", back_populates="agent_executions")
     content_job = relationship("ContentJob")
-    approval_requests = relationship("ApprovalRequest", back_populates="agent_execution")
+    # Removed relationship to undefined model: ApprovalRequest
     
     __table_args__ = (
         Index('idx_agent_episode', 'episode_id'),
@@ -1061,7 +1059,7 @@ class RenderingJob(TenantMixin, Base):
     # Metadata
     job_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid reserved word conflict
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     episode = relationship("Episode")
     composition = relationship("VideoComposition", back_populates="rendering_jobs")
@@ -1113,7 +1111,7 @@ class VideoComposition(TenantMixin, Base):
     # Metadata
     composition_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid reserved word conflict
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     episode = relationship("Episode")
     rendering_jobs = relationship("RenderingJob", back_populates="composition")
@@ -1160,7 +1158,7 @@ class RenderOutput(TenantMixin, Base):
     # Metadata
     output_metadata = Column(JSON, default=dict)  # Renamed from 'metadata' to avoid reserved word conflict
     
-    # Relationships
+    # Relationships - organization relationship uses TenantMixin pattern
     organization = relationship("Organization")
     rendering_job = relationship("RenderingJob", back_populates="outputs")
     
@@ -1374,4 +1372,163 @@ class AnalyticsJob(TenantMixin, Base):
     def __repr__(self):
         return f"<AnalyticsJob(id={self.id}, type='{self.job_type}', status='{self.status}')>"
 
+
+# =============================================================================
+# PHASE 9: AI PROVIDER MANAGEMENT MODELS
+# =============================================================================
+
+class ProviderType(str, enum.Enum):
+    """AI provider type enumeration."""
+    TEXT = "text"  # LLM for scripts, research, etc.
+    IMAGE = "image"  # Image generation
+    VIDEO = "video"  # Video generation
+    VOICE = "voice"  # Text-to-speech
+    RESEARCH = "research"  # Research/web search
+
+
+class AIProvider(TenantMixin, Base):
+    """
+    AIProvider model - External AI service configuration.
+    
+    Stores configuration for external AI providers like OpenAI, Anthropic,
+    ElevenLabs, Runway, etc. API keys are encrypted at rest.
+    """
+    __tablename__ = "ai_providers"
+    
+    # Provider identification
+    name = Column(String(100), nullable=False)  # Human-readable name
+    provider_type = Column(SQLEnum(ProviderType), nullable=False, index=True)  # text, image, video, voice, research
+    provider_name = Column(String(50), nullable=False, index=True)  # deepseek, openai, elevenlabs, runway, perplexity
+    
+    # API Configuration
+    api_endpoint = Column(String(500), nullable=True)  # Custom endpoint (for self-hosted or alternative endpoints)
+    encrypted_api_key = Column(Text, nullable=False)  # Encrypted API key
+    configuration = Column(JSON, default=dict)  # Additional provider-specific configuration
+    
+    # Status
+    is_active = Column(Boolean, default=True, index=True)
+    last_tested_at = Column(DateTime(timezone=True), nullable=True)
+    last_test_status = Column(String(50), nullable=True)  # success, failed
+    
+    # Relationships - organization relationship uses TenantMixin pattern
+    organization = relationship("Organization")
+    # AIProfile relationships for each provider type - using foreign_keys to avoid mapper conflicts
+    text_provider = relationship("AIProfile", foreign_keys="AIProfile.text_provider_id", back_populates="text_provider_rel")
+    image_provider = relationship("AIProfile", foreign_keys="AIProfile.image_provider_id", back_populates="image_provider_rel")
+    video_provider = relationship("AIProfile", foreign_keys="AIProfile.video_provider_id", back_populates="video_provider_rel")
+    voice_provider = relationship("AIProfile", foreign_keys="AIProfile.voice_provider_id", back_populates="voice_provider_rel")
+    research_provider = relationship("AIProfile", foreign_keys="AIProfile.research_provider_id", back_populates="research_provider_rel")
+    usage_records = relationship("AIUsageRecord", back_populates="provider", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_provider_org_type', 'organization_id', 'provider_type'),
+        Index('idx_provider_active', 'is_active'),
+    )
+    
+    def __repr__(self):
+        return f"<AIProvider(id={self.id}, name='{self.name}', type='{self.provider_type}')>"
+
+
+class AIProfile(TenantMixin, Base):
+    """
+    AIProfile model - AI provider profile grouping.
+    
+    Groups multiple AI providers into a single profile that can be used
+    by workflows. Allows switching entire AI stack without code changes.
+    
+    Example Profile: "YouTube Horror Channel"
+    - Text Provider: DeepSeek
+    - Image Provider: Nano Banana
+    - Video Provider: Runway
+    - Voice Provider: ElevenLabs
+    - Research Provider: Perplexity
+    """
+    __tablename__ = "ai_profiles"
+    
+    # Identification
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Provider assignments (foreign keys to AIProvider)
+    text_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    image_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    video_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    voice_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    research_provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
+    
+    # Configuration
+    configuration = Column(JSON, default=dict)  # Profile-level configuration
+    
+    # Status
+    is_default = Column(Boolean, default=False, index=True)  # Default profile for organization
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships - organization relationship uses TenantMixin pattern
+    organization = relationship("Organization")
+    # Provider relationships with back_populates to match AIProvider side
+    text_provider_rel = relationship("AIProvider", foreign_keys=[text_provider_id], back_populates="text_provider")
+    image_provider_rel = relationship("AIProvider", foreign_keys=[image_provider_id], back_populates="image_provider")
+    video_provider_rel = relationship("AIProvider", foreign_keys=[video_provider_id], back_populates="video_provider")
+    voice_provider_rel = relationship("AIProvider", foreign_keys=[voice_provider_id], back_populates="voice_provider")
+    research_provider_rel = relationship("AIProvider", foreign_keys=[research_provider_id], back_populates="research_provider")
+    usage_records = relationship("AIUsageRecord", back_populates="profile", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_profile_org', 'organization_id'),
+        Index('idx_profile_default', 'is_default'),
+    )
+    
+    def __repr__(self):
+        return f"<AIProfile(id={self.id}, name='{self.name}', org={self.organization_id})>"
+
+
+class AIUsageRecord(TenantMixin, Base):
+    """
+    AIUsageRecord model - AI usage and cost tracking.
+    
+    Tracks usage of AI providers including tokens, costs, and execution time.
+    Used for cost analysis and optimization.
+    """
+    __tablename__ = "ai_usage_records"
+    
+    # Foreign keys
+    profile_id = Column(Integer, ForeignKey("ai_profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    provider_id = Column(Integer, ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True, index=True)
+    
+    # Operation details
+    operation_type = Column(String(50), nullable=False, index=True)  # e.g., 'text_generation', 'image_generation'
+    model_name = Column(String(100), nullable=True)  # Specific model used
+    
+    # Usage metrics
+    tokens_used = Column(BigInteger, default=0)
+    input_tokens = Column(BigInteger, default=0)
+    output_tokens = Column(BigInteger, default=0)
+    cost_usd = Column(Float, default=0.0)
+    execution_time_ms = Column(Integer, default=0)  # Execution time in milliseconds
+    
+    # Context
+    job_id = Column(Integer, ForeignKey("content_jobs.id", ondelete="SET NULL"), nullable=True)  # Link to ContentJob
+    request_metadata = Column(JSON, default=dict)  # Additional request context
+    response_metadata = Column(JSON, default=dict)  # Response metadata
+    
+    # Timestamps included from TenantMixin
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships - organization relationship uses TenantMixin pattern
+    organization = relationship("Organization")
+    profile = relationship("AIProfile", back_populates="usage_records")
+    provider = relationship("AIProvider", back_populates="usage_records")
+    # ContentJob relationship removed - AIUsageRecord references ContentJob but ContentJob doesn't have back_populates
+    
+    __table_args__ = (
+        Index('idx_usage_org_created', 'organization_id', 'created_at'),
+        Index('idx_usage_cost', 'cost_usd'),
+    )
+    
+    def __repr__(self):
+        return f"<AIUsageRecord(id={self.id}, operation='{self.operation_type}', cost={self.cost_usd})>"
+
+
+# Note: ContentJob.ai_usage_records relationship removed as AIUsageRecord no longer has back_populates to content_job
+# This avoids mapper conflicts when the models are imported
 
