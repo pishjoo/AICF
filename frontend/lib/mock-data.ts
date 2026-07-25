@@ -1,5 +1,6 @@
 import type { ContentProject, PipelineStage } from '@/types/content';
 import type { WorkflowStage, Approval, ActivityEvent } from '@/types/workflow';
+import type { MediaAssetDetail } from '@/types/media-detail';
 
 export const sampleContentProjects: ContentProject[] = [
   {
@@ -127,4 +128,88 @@ export const getApprovalsForProject = (projectId?: string): Approval[] => {
 export const getActivityEventsForProject = (projectId?: string): ActivityEvent[] => {
   // In a real implementation, this would filter by projectId
   return activityEvents;
+};
+
+export const sampleMediaAssets: MediaAssetDetail[] = [
+  {
+    id: '1',
+    filename: 'product-launch-hero.mp4',
+    type: 'video',
+    status: 'ready',
+    size: 52428800,
+    url: 'https://cdn.example.com/media/product-launch-hero.mp4',
+    thumbnail: 'https://cdn.example.com/thumbnails/product-launch-hero.jpg',
+    metadata: {
+      dimensions: { width: 1920, height: 1080 },
+      duration: 120,
+      codec: 'h264',
+      createdAt: '2024-01-15T10:30:00Z',
+      uploadedBy: 'Alice Brown',
+    },
+    tags: ['product', 'launch', 'hero', 'q1'],
+  },
+  {
+    id: '2',
+    filename: 'social-banner-2024.png',
+    type: 'image',
+    status: 'ready',
+    size: 2048576,
+    url: 'https://cdn.example.com/media/social-banner-2024.png',
+    thumbnail: 'https://cdn.example.com/thumbnails/social-banner-2024.png',
+    metadata: {
+      dimensions: { width: 1200, height: 630 },
+      createdAt: '2024-01-18T14:00:00Z',
+      uploadedBy: 'Bob Wilson',
+    },
+    tags: ['social', 'banner', 'marketing'],
+  },
+  {
+    id: '3',
+    filename: 'podcast-ep42.mp3',
+    type: 'audio',
+    status: 'processing',
+    size: 15728640,
+    url: 'https://cdn.example.com/media/podcast-ep42.mp3',
+    metadata: {
+      duration: 1800,
+      codec: 'mp3',
+      createdAt: '2024-01-17T16:20:00Z',
+      uploadedBy: 'Sarah Johnson',
+    },
+    tags: ['podcast', 'episode', 'audio'],
+  },
+  {
+    id: '4',
+    filename: 'brand-guidelines.pdf',
+    type: 'document',
+    status: 'ready',
+    size: 4194304,
+    url: 'https://cdn.example.com/media/brand-guidelines.pdf',
+    thumbnail: 'https://cdn.example.com/thumbnails/brand-guidelines.png',
+    metadata: {
+      createdAt: '2024-01-10T09:15:00Z',
+      uploadedBy: 'John Smith',
+    },
+    tags: ['brand', 'guidelines', 'document'],
+  },
+  {
+    id: '5',
+    filename: 'testimonial-raw.mov',
+    type: 'video',
+    status: 'pending',
+    size: 104857600,
+    url: 'https://cdn.example.com/media/testimonial-raw.mov',
+    metadata: {
+      dimensions: { width: 3840, height: 2160 },
+      duration: 300,
+      codec: 'prores',
+      createdAt: '2024-01-20T11:45:00Z',
+      uploadedBy: 'Mike Chen',
+    },
+    tags: ['testimonial', 'raw', 'customer'],
+  },
+];
+
+export const getMediaAssetDetail = (id: string): MediaAssetDetail | undefined => {
+  return sampleMediaAssets.find((asset) => asset.id === id);
 };
