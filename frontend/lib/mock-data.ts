@@ -1,5 +1,6 @@
 import type { ContentProject, PipelineStage } from '@/types/content';
 import type { WorkflowStage, Approval, ActivityEvent } from '@/types/workflow';
+import type { MediaCollection } from '@/types/collection';
 
 export const sampleContentProjects: ContentProject[] = [
   {
@@ -127,4 +128,51 @@ export const getApprovalsForProject = (projectId?: string): Approval[] => {
 export const getActivityEventsForProject = (projectId?: string): ActivityEvent[] => {
   // In a real implementation, this would filter by projectId
   return activityEvents;
+};
+
+export const sampleMediaCollections: MediaCollection[] = [
+  {
+    id: '1',
+    name: 'YouTube Episode Assets',
+    description: 'Video assets and thumbnails for YouTube episode series',
+    type: 'project',
+    status: 'active',
+    assetCount: 24,
+    createdAt: '2024-01-10T08:00:00Z',
+    updatedAt: '2024-01-20T14:30:00Z',
+  },
+  {
+    id: '2',
+    name: 'Marketing Campaign Media',
+    description: 'Images, videos, and graphics for Q1 marketing campaign',
+    type: 'campaign',
+    status: 'active',
+    assetCount: 56,
+    createdAt: '2024-01-05T10:00:00Z',
+    updatedAt: '2024-01-22T09:15:00Z',
+  },
+  {
+    id: '3',
+    name: 'AI Generated Videos',
+    description: 'Collection of AI-generated video content for experimentation',
+    type: 'personal',
+    status: 'active',
+    assetCount: 18,
+    createdAt: '2024-01-12T16:45:00Z',
+    updatedAt: '2024-01-21T11:00:00Z',
+  },
+  {
+    id: '4',
+    name: 'Archived Projects',
+    description: 'Legacy project assets from previous campaigns',
+    type: 'archive',
+    status: 'archived',
+    assetCount: 142,
+    createdAt: '2023-11-01T09:00:00Z',
+    updatedAt: '2024-01-08T17:30:00Z',
+  },
+];
+
+export const getMediaCollections = (): MediaCollection[] => {
+  return sampleMediaCollections;
 };
