@@ -34,12 +34,16 @@ from app.api.schemas import (
     AgentExecuteResponse
 )
 from app.auth.routes import router as auth_router
+from app.api.health import router as health_router
 
 
 router = APIRouter()
 
 # Include authentication routes
 router.include_router(auth_router)
+
+# Include health check routes
+router.include_router(health_router)
 
 
 # ============== Content Profile Endpoints ==============
@@ -232,12 +236,4 @@ def execute_workflow_stage(
         output={"message": "Workflow execution not yet implemented - agents pending"},
         error_message="Agents not yet registered"
     )
-
-
-# ============== Health Check ==============
-
-@router.get("/health", response_model=MessageResponse, tags=["Health"])
-def health_check():
-    """Health check endpoint."""
-    return MessageResponse(message="AICF API is running")
 

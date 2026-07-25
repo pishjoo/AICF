@@ -84,10 +84,15 @@ class JobWorker:
         
         Returns True if job will be retried, False otherwise.
         """
+        from .dead_letter_queue import get_dead_letter_queue
+        
         if message.retry_count >= message.max_retries:
             self.logger.warning(
                 f"Job {message.job_id} exceeded max retries ({message.max_retries})"
             )
+            # Move to dead letter queue
+            dlq = get_dead_letter_queue()
+            dlq.add(message, f"Exceeded max retries ({message.max_retries})")
             return False
         
         # Exponential backoff could be implemented here

@@ -1,27 +1,30 @@
-Update gitignore
-fd51cc2
-.gitignore
-
-@@ -43,6 +43,21 @@ target/
-# MyPy
-.mypy_cache/
-
-<<<<<<< HEAD
-# PyTest
-.pytest_cache/
-``` No newline at end of file
 ```
-=======
-# Documentation
-docs/*.md
-
-# new files
-*.db
-*.sqlite
-*.sqlite3
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+.venv/
+venv/
+env/
 .env
-storage/
-logs/```
->>>>>>> 79399ec (Update gitignore)
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+```
