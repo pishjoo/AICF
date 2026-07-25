@@ -1,14 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { ArrowLeft, MoreHorizontal, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Pipeline, PipelineStageCard } from '@/components/content/Pipeline';
-import { sampleContentProjects, getPipelineStagesForProject } from '@/lib/mock-data';
+import { WorkflowTimeline } from '@/components/workflow/WorkflowTimeline';
+import { ApprovalPanel } from '@/components/workflow/ApprovalPanel';
+import { ActivityFeed } from '@/components/workflow/ActivityFeed';
+import { sampleContentProjects, getPipelineStagesForProject, getWorkflowStagesForProject, getApprovalsForProject, getActivityEventsForProject } from '@/lib/mock-data';
 import type { ContentProject } from '@/types/content';
 
 const statusLabels: Record<string, string> = {
@@ -29,7 +32,6 @@ const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | '
 
 export default function ContentProjectDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const projectId = params.id as string;
 
   // Find project from mock data - in real app this would be fetched from API
@@ -59,6 +61,9 @@ export default function ContentProjectDetailPage() {
   }
 
   const pipelineStages = getPipelineStagesForProject(project.currentStage);
+  const workflowStages = getWorkflowStagesForProject(project.id);
+  const approvals = getApprovalsForProject(project.id);
+  const activityEvents = getActivityEventsForProject(project.id);
 
   // Placeholder for future workflow approval components
   const nextActions = [
@@ -151,9 +156,12 @@ export default function ContentProjectDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Workflow Timeline */}
+          <WorkflowTimeline stages={workflowStages} />
         </div>
 
-        {/* Right Column - Next Actions & Details */}
+        {/* Right Column - Next Actions, Approval & Activity */}
         <div className="space-y-6">
           {/* Next Actions - Prepared for workflow approval components */}
           <Card>
@@ -188,6 +196,25 @@ export default function ContentProjectDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Approval Section */}
+          {approvals.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Approvals</h3>
+              {approvals.map((approval) => (
+                <ApprovalPanel
+                  key={approval.id}
+                  approval={approval}
+                  onApprove={(id) => console.log('Approve:', id)}
+                  onReject={(id) => console.log('Reject:', id)}
+                  onRequestChanges={(id) => console.log('Request Changes:', id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Activity Section */}
+          <ActivityFeed events={activityEvents} limit={5} />
 
           {/* Project Metadata */}
           <Card>
