@@ -1,6 +1,7 @@
 import type { ContentProject, PipelineStage } from '@/types/content';
 import type { WorkflowStage, Approval, ActivityEvent } from '@/types/workflow';
 import type { MediaCollection } from '@/types/collection';
+import type { CollectionDetail } from '@/types/collection-detail';
 
 export const sampleContentProjects: ContentProject[] = [
   {
@@ -175,4 +176,57 @@ export const sampleMediaCollections: MediaCollection[] = [
 
 export const getMediaCollections = (): MediaCollection[] => {
   return sampleMediaCollections;
+};
+
+export const sampleCollectionDetails: CollectionDetail[] = [
+  {
+    id: '1',
+    name: 'YouTube Horror Episode 01',
+    description: 'Assets for the first episode of the YouTube horror channel series including raw footage, sound effects, and thumbnails.',
+    type: 'project',
+    status: 'active',
+    createdAt: '2024-01-10T08:00:00Z',
+    updatedAt: '2024-01-20T14:30:00Z',
+    owner: 'Mohammad',
+    project: 'YouTube Horror Channel',
+    assetCount: 34,
+    totalSize: '4.8 GB',
+    tags: ['youtube', 'horror', 'episode-01'],
+  },
+  {
+    id: '2',
+    name: 'Marketing Campaign Q1',
+    description: 'Complete media assets for Q1 marketing campaign including promotional videos, social media graphics, and banners.',
+    type: 'campaign',
+    status: 'active',
+    createdAt: '2024-01-05T10:00:00Z',
+    updatedAt: '2024-01-22T09:15:00Z',
+    owner: 'Sarah Johnson',
+    project: 'Q1 Marketing Push',
+    assetCount: 56,
+    totalSize: '12.3 GB',
+    tags: ['marketing', 'q1', 'campaign', 'social-media'],
+  },
+  {
+    id: '3',
+    name: 'AI Generated Content',
+    description: 'Experimental AI-generated video content for testing new workflows and techniques.',
+    type: 'personal',
+    status: 'active',
+    createdAt: '2024-01-12T16:45:00Z',
+    updatedAt: '2024-01-21T11:00:00Z',
+    owner: 'Alex Chen',
+    project: 'AI Experiments',
+    assetCount: 18,
+    totalSize: '2.1 GB',
+    tags: ['ai', 'experimental', 'video'],
+  },
+];
+
+export const getCollectionDetail = (id: string): CollectionDetail | undefined => {
+  return sampleCollectionDetails.find((collection) => collection.id === id);
+};
+
+export const getAllCollectionDetails = (): CollectionDetail[] => {
+  return sampleCollectionDetails;
 };
