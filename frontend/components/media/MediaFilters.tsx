@@ -124,6 +124,73 @@ export function MediaFilters({ onTypeChange, onStatusChange, onSortChange }: Med
             ))}
           </div>
         </div>
+
+        {/* Project Filters */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase">Project</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              "All Projects",
+              "YouTube Horror Episode 01",
+              "Marketing Campaign",
+              "Product Video Series",
+            ].map((project) => (
+              <Button
+                key={project}
+                variant="outline"
+                size="sm"
+                className="gap-1"
+              >
+                {project}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Creator Filters */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase">Creator</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              "All Creators",
+              "Mohammad",
+              "Script AI Agent",
+              "Image AI Agent",
+              "Voice AI Agent",
+            ].map((creator) => (
+              <Button
+                key={creator}
+                variant="outline"
+                size="sm"
+                className="gap-1"
+              >
+                {creator}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Source Filters */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase">Source</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              "All Sources",
+              "Uploaded",
+              "AI Generated",
+              "Edited",
+              "Imported",
+            ].map((source) => (
+              <Badge
+                key={source}
+                variant="secondary"
+                className="cursor-pointer"
+              >
+                {source}
+              </Badge>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
